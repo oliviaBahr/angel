@@ -1,0 +1,202 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/alecthomas/kong"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
+)
+
+const VERSION = "0.1.0"
+
+// Style functions for consistent formatting
+var (
+	green       = lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Render      // light green
+	magenta     = lipgloss.NewStyle().Foreground(lipgloss.Color("#F37878")).Render // light magenta
+	dimmed      = lipgloss.NewStyle().Faint(true).Render
+	under       = lipgloss.NewStyle().Underline(true).Render
+	center      = lipgloss.NewStyle().Align(lipgloss.Center).Render
+	dimunder    = lipgloss.NewStyle().Faint(true).Underline(true).Render
+	bold        = lipgloss.NewStyle().Bold(true).Render
+	headerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F37878"))
+	indented    = lipgloss.NewStyle().Padding(0, 2).Render
+)
+
+var cli struct {
+	Start     StartCmd     `cmd:"" help:"Start a service."`
+	Stop      StopCmd      `cmd:"" help:"Stop a service."`
+	Restart   RestartCmd   `cmd:"" help:"Restart a service."`
+	Status    StatusCmd    `cmd:"" help:"Show service status."`
+	List      ListCmd      `cmd:"" aliases:"ls" help:"List services."`
+	Install   InstallCmd   `cmd:"" help:"Install a service."`
+	Uninstall UninstallCmd `cmd:"" help:"Uninstall a service."`
+	Show      ShowCmd      `cmd:"" help:"Show service daemon."`
+	Edit      EditCmd      `cmd:"" help:"Edit service daemon."`
+	Version   VersionCmd   `cmd:"" help:"Show version."`
+}
+
+func main() {
+	// Initialize daemons at startup
+	daemons := LoadDaemons()
+
+	ctx := kong.Parse(&cli,
+		kong.Name("angel"),
+		kong.Description("macOS launchd service manager"),
+		kong.UsageOnError(),
+		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: 200}),
+		kong.Help(customHelpPrinter),
+	)
+
+	err := ctx.Run(daemons, ctx)
+	ctx.FatalIfErrorf(err)
+}
+
+// customHelpPrinter provides custom help formatting that hides default values from flag names
+func customHelpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
+	fmt.Println()
+	selected := ctx.Selected()
+	if selected == nil {
+		return printRootHelp(ctx)
+	}
+	return printCommandHelp(selected)
+}
+
+func printRootHelp(ctx *kong.Context) error {
+	fmt.Println(ctx.Model.Help)
+
+	fmt.Println(green("\nUsage"))
+	fmt.Println(indented(ctx.Model.Name + magenta(" <command>") + shortFlags(ctx.Model.Flags)))
+
+	fmt.Println(green("\nCommands"))
+	fmt.Println(indented(CommandsTable(ctx.Model.Leaves(false)).String()))
+
+	if len(ctx.Model.AllFlags(false)) > 0 {
+		fmt.Println(green("\nFlags"))
+		fmt.Println(indented(FlagsTable(ctx.Model.AllFlags(false), true).String()))
+	}
+
+	fmt.Println()
+	return nil
+}
+
+func printCommandHelp(selected *kong.Node) error {
+	fmt.Println(selected.Help)
+
+	fmt.Println(green("\nUsage"))
+	fmt.Println(indented(CommandUsageStr(selected)))
+
+	fmt.Println(green("\nArguments"))
+	fmt.Println(indented(ArgsTable(selected.Positional).String()))
+
+	if len(selected.Flags) > 0 {
+		fmt.Println(green("\nFlags"))
+		fmt.Println(indented(FlagsTable(selected.AllFlags(false), false).String()))
+	}
+
+	fmt.Println()
+	return nil
+}
+
+func makeTable(rows [][]string) *table.Table {
+	return table.New().
+		Rows(rows...).
+		BorderTop(false).
+		BorderBottom(false).
+		BorderRight(false).
+		BorderLeft(false).
+		BorderColumn(false).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if col == 1 {
+				return lipgloss.NewStyle().Padding(0, 2)
+			}
+			return lipgloss.NewStyle()
+		})
+}
+
+func ArgsTable(args []*kong.Positional) *table.Table {
+	var rows [][]string
+	for _, arg := range args {
+		rows = append(rows, []string{magenta(arg.Summary()), arg.Help})
+	}
+	return makeTable(rows)
+}
+
+func CommandsTable(commands []*kong.Node) *table.Table {
+	var rows [][]string
+	for _, cmd := range commands {
+		rows = append(rows, []string{CommandUsageStr(cmd), cmd.Help})
+	}
+	return makeTable(rows)
+}
+
+func FlagsTable(flags [][]*kong.Flag, showHelp bool) *table.Table {
+	var rows [][]string
+	for _, flagGroup := range flags {
+		for _, flag := range flagGroup {
+			if flag.Name == "help" && !showHelp {
+				continue
+			}
+			flagName := fmt.Sprintf("-%c --%s", flag.Short, flag.Name)
+			rows = append(rows, []string{flagName, FormatHelpStr(flag.Value)})
+		}
+	}
+	return makeTable(rows)
+}
+
+func CommandUsageStr(cmd *kong.Node) string {
+	var sb strings.Builder
+
+	if cmd.Name != "" {
+		sb.WriteString(bold(cmd.Name))
+	}
+	if aliasesStr := strings.Join(cmd.Aliases, ","); aliasesStr != "" {
+		sb.WriteString(dimmed(fmt.Sprintf(" (%s)", aliasesStr)))
+	}
+	for _, arg := range cmd.Positional {
+		if arg.Required {
+			sb.WriteString(magenta(fmt.Sprintf(" <%s>", arg.Name)))
+		} else {
+			sb.WriteString(dimmed(magenta(fmt.Sprintf(" <%s>", arg.Name))))
+		}
+	}
+	sb.WriteString(shortFlags(cmd.Flags))
+	return sb.String()
+}
+
+func shortFlags(flags []*kong.Flag) string {
+	if len(flags) > 0 {
+		var flagstr strings.Builder
+		for _, flag := range flags {
+			if flag.Short != 0 {
+				flagstr.WriteString(string(flag.Short))
+			}
+		}
+		if flagstr.Len() > 0 {
+			return fmt.Sprintf(" [-%s]", flagstr.String())
+		}
+	}
+	return ""
+}
+
+// add possible enum values to the help string
+func FormatHelpStr(value *kong.Value) string {
+	if value.Enum != "" {
+		enumValues := strings.Split(value.Enum, ",")
+
+		var formattedValues []string
+		for _, enumValue := range enumValues {
+			if enumValue == value.Default {
+				formattedValues = append(formattedValues, dimunder(enumValue))
+			} else {
+				formattedValues = append(formattedValues, enumValue)
+			}
+		}
+
+		enumText := strings.Join(formattedValues, "|")
+		// dimming the whole thing at once doesn't work idk why
+		value.Help += dimmed(" [") + dimmed(enumText) + dimmed("]")
+	}
+	return value.Help
+}
