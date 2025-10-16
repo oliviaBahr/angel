@@ -45,7 +45,6 @@ func main() {
 		kong.Name("angel"),
 		kong.Description("macOS launchd service manager"),
 		kong.UsageOnError(),
-		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: 200}),
 		kong.Help(customHelpPrinter),
 	)
 
@@ -70,11 +69,11 @@ func printRootHelp(ctx *kong.Context) error {
 	fmt.Println(indented(ctx.Model.Name + magenta(" <command>") + shortFlags(ctx.Model.Flags)))
 
 	fmt.Println(green("\nCommands"))
-	fmt.Println(indented(CommandsTable(ctx.Model.Leaves(false)).String()))
+	fmt.Println(indented(MakeTable(ctx.Model.Leaves(false), true).String()))
 
 	if len(ctx.Model.AllFlags(false)) > 0 {
 		fmt.Println(green("\nFlags"))
-		fmt.Println(indented(FlagsTable(ctx.Model.AllFlags(false), true).String()))
+		fmt.Println(indented(MakeTable(ctx.Model.AllFlags(false), true).String()))
 	}
 
 	fmt.Println()
@@ -88,11 +87,11 @@ func printCommandHelp(selected *kong.Node) error {
 	fmt.Println(indented(CommandUsageStr(selected)))
 
 	fmt.Println(green("\nArguments"))
-	fmt.Println(indented(ArgsTable(selected.Positional).String()))
+	fmt.Println(indented(MakeTable(selected.Positional, false).String()))
 
 	if len(selected.Flags) > 0 {
 		fmt.Println(green("\nFlags"))
-		fmt.Println(indented(FlagsTable(selected.AllFlags(false), false).String()))
+		fmt.Println(indented(MakeTable(selected.AllFlags(false), false).String()))
 	}
 
 	fmt.Println()
@@ -115,33 +114,30 @@ func makeTable(rows [][]string) *table.Table {
 		})
 }
 
-func ArgsTable(args []*kong.Positional) *table.Table {
+func MakeTable(data interface{}, showHelp bool) *table.Table {
 	var rows [][]string
-	for _, arg := range args {
-		rows = append(rows, []string{magenta(arg.Summary()), arg.Help})
-	}
-	return makeTable(rows)
-}
-
-func CommandsTable(commands []*kong.Node) *table.Table {
-	var rows [][]string
-	for _, cmd := range commands {
-		rows = append(rows, []string{CommandUsageStr(cmd), cmd.Help})
-	}
-	return makeTable(rows)
-}
-
-func FlagsTable(flags [][]*kong.Flag, showHelp bool) *table.Table {
-	var rows [][]string
-	for _, flagGroup := range flags {
-		for _, flag := range flagGroup {
-			if flag.Name == "help" && !showHelp {
-				continue
+	
+	switch v := data.(type) {
+	case []*kong.Positional:
+		for _, arg := range v {
+			rows = append(rows, []string{magenta(arg.Summary()), arg.Help})
+		}
+	case []*kong.Node:
+		for _, cmd := range v {
+			rows = append(rows, []string{CommandUsageStr(cmd), cmd.Help})
+		}
+	case [][]*kong.Flag:
+		for _, flagGroup := range v {
+			for _, flag := range flagGroup {
+				if flag.Name == "help" && !showHelp {
+					continue
+				}
+				flagName := fmt.Sprintf("-%c --%s", flag.Short, flag.Name)
+				rows = append(rows, []string{flagName, FormatHelpStr(flag.Value)})
 			}
-			flagName := fmt.Sprintf("-%c --%s", flag.Short, flag.Name)
-			rows = append(rows, []string{flagName, FormatHelpStr(flag.Value)})
 		}
 	}
+	
 	return makeTable(rows)
 }
 
