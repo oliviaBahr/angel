@@ -15,6 +15,7 @@ build: schema
 # Generate JSON schema from Config struct
 schema:
 	@echo "Generating JSON schema..."
+	mkdir -p build
 	go run -tags tools ./tools/schema.go
 	@echo "Schema generated: angel-config-schema.json"
 
