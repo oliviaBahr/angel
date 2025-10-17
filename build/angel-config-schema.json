@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://angel.dev/schema/config.json",
+  "$ref": "#/$defs/Config",
+  "$defs": {
+    "Config": {
+      "properties": {
+        "Paths": {
+          "items": {
+            "$ref": "#/$defs/CustomPath"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "Paths"
+      ]
+    },
+    "CustomPath": {
+      "properties": {
+        "Domain": {
+          "type": "string"
+        },
+        "Path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "Domain",
+        "Path"
+      ]
+    }
+  },
+  "title": "Angel Configuration Schema",
+  "description": "Configuration schema for the Angel file organizer"
+}
