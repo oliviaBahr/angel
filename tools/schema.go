@@ -1,4 +1,3 @@
-//go:generate go run ./tools/schema.go
 //go:build tools
 
 package main
