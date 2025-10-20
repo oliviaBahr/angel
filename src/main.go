@@ -15,8 +15,6 @@ var cli struct {
 	Restart   cmd.RestartCmd   `cmd:"" help:"Restart a service."`
 	Status    cmd.StatusCmd    `cmd:"" help:"Show service status."`
 	List      cmd.ListCmd      `cmd:"" aliases:"ls" help:"List services."`
-	Install   cmd.InstallCmd   `cmd:"" help:"Install a service."`
-	Uninstall cmd.UninstallCmd `cmd:"" help:"Uninstall a service."`
 	Show      cmd.ShowCmd      `cmd:"" help:"Show service daemon."`
 	Edit      cmd.EditCmd      `cmd:"" help:"Edit service daemon."`
 	Version   cmd.VersionCmd   `cmd:"" help:"Show version."`
