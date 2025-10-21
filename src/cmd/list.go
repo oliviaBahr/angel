@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"angel/src/core"
-	"angel/src/core/styles"
 	"fmt"
 	fp "path/filepath"
 
 	"github.com/alecthomas/kong"
+	"github.com/charmbracelet/lipgloss/table"
 )
 
 type ListCmd struct {
@@ -16,20 +16,14 @@ type ListCmd struct {
 }
 
 func (l *ListCmd) Run(angel *core.Angel, ctx *kong.Context) error {
-	return angel.WithMatch(l.Pattern, false, ctx, func(matches []core.Daemon) error {
-		daemons := make(map[string][]string)
-		for _, daemon := range matches {
-			if daemon.ForUseBy != core.ForApple {
-				srcDir := fp.Dir(daemon.SourcePath)
-				daemons[srcDir] = append(daemons[srcDir], daemon.Name)
-			}
-		}
-		for srcDir, names := range daemons {
-			fmt.Println("\n" + styles.Under(srcDir))
-			for _, name := range names {
-				fmt.Println("  -", name)
-			}
+	t := table.New()
+	err := angel.WithMatches(l.Pattern, false, ctx, func(daemon core.Daemon) error {
+		if daemon.ForUseBy != core.ForApple {
+			srcDir := fp.Dir(daemon.SourcePath)
+			t.Row(daemon.Name, srcDir)
 		}
 		return nil
 	})
+	fmt.Println(t.String())
+	return err
 }

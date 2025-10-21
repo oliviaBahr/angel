@@ -8,9 +8,9 @@ run:
 
 
 # Build the angel binary
-build: schema
+build:
 	@echo "Building angel..."
-	go build -o build/angel ./src
+	go build -o ./angel ./src
 
 # Generate JSON schema from Config struct
 schema:

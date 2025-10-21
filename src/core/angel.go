@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	fp "path/filepath"
-	"reflect"
 	"regexp"
 
 	"github.com/alecthomas/kong"
@@ -79,16 +78,33 @@ func userHome() (dir string) {
 	return dir
 }
 
-// WithMatch executes a callback function with daemons matching the query
-func (a *Angel) WithMatch(query string, exact bool, ctx *kong.Context, execFn interface{}) error {
+// executes a callback function with the first daemon matching the query
+func (a *Angel) WithMatch(query string, exact bool, ctx *kong.Context, execFn func(Daemon) error) error {
+	matches := a.findMatches(query, exact, ctx)
+	return execFn(matches[0])
+}
+
+// executes a callback function with all daemons matching the query
+func (a *Angel) WithMatches(query string, exact bool, ctx *kong.Context, execFn func(Daemon) error) error {
+	matches := a.findMatches(query, exact, ctx)
+	for _, daemon := range matches {
+		if err := execFn(daemon); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// findMatches finds all daemons matching the query pattern
+func (a *Angel) findMatches(query string, exact bool, ctx *kong.Context) []Daemon {
 	if exact {
 		query = fmt.Sprintf("^%s$", query)
 	}
 	pattern := regexp.MustCompile("(?i)" + regexp.QuoteMeta(query))
 	var matches []Daemon
 
-	for agent, daemon := range a.Daemons {
-		if pattern.MatchString(agent) {
+	for daemonName, daemon := range a.Daemons {
+		if pattern.MatchString(daemonName) {
 			matches = append(matches, daemon)
 		}
 	}
@@ -99,14 +115,5 @@ func (a *Angel) WithMatch(query string, exact bool, ctx *kong.Context, execFn in
 		}
 		ctx.Exit(0)
 	}
-
-	inputType := reflect.TypeOf(execFn).In(0)
-	switch inputType {
-	case reflect.TypeOf([]Daemon{}):
-		return execFn.(func([]Daemon) error)(matches)
-	case reflect.TypeOf(Daemon{}):
-		return execFn.(func(Daemon) error)(matches[0])
-	default:
-		panic("this should never happen. callback must be func(Daemon) error or func([]Daemon)")
-	}
+	return matches
 }
