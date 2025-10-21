@@ -59,10 +59,10 @@ func loadPlistDirectories(cfg *Config) []PlistDir {
 	}
 
 	// Add user-defined directories from config
-	for _, customDir := range cfg.Dirs {
+	for _, cfgDir := range cfg.Directories {
 		dirs = append(dirs, PlistDir{
-			Path:     customDir.Path,
-			Domain:   customDir.Domain,
+			Path:     cfgDir.Path,
+			Domain:   cfgDir.Domain,
 			ForUseBy: ForAngel,
 		})
 	}
