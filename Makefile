@@ -25,20 +25,11 @@ clean:
 	rm -f angel
 	rm -f angel-config-schema.json
 
-# Run tests
-test:
-	@echo "Running tests..."
-	go test ./...
-
 # Install dependencies
 deps:
 	@echo "Installing dependencies..."
 	go mod tidy
 
-# Development build (with race detection)
-dev: schema
-	@echo "Building angel (dev mode)..."
-	go build -race -o angel src/*.go
 
 # Release build (optimized)
 release: schema

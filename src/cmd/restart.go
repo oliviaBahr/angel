@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os/exec"
 
 	"angel/src/core"
+	"angel/src/core/launchctl"
 
 	"github.com/alecthomas/kong"
 )
@@ -15,7 +15,7 @@ type RestartCmd struct {
 
 func (r *RestartCmd) Run(angel *core.Angel, ctx *kong.Context) error {
 	return angel.WithMatch(r.Name, false, ctx, func(daemon core.Daemon) error {
-		output, err := exec.Command("launchctl", "kickstart", "-k", daemon.Domain+"/"+daemon.Name).Output()
+		output, err := launchctl.KickstartKill(daemon)
 		if err != nil {
 			return err
 		}

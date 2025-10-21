@@ -1,84 +1,71 @@
 package core
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/alecthomas/kong"
 	"gopkg.in/yaml.v3"
 )
 
-// Domain represents the type of path domain
-type Domain string
-
-const (
-	DomainUser   Domain = "user"
-	DomainSystem Domain = "system"
-	DomainGUI    Domain = "gui"
-)
-
-// UnmarshalYAML implements custom YAML unmarshaling with validation
-func (d *Domain) UnmarshalYAML(value *yaml.Node) error {
-	var domainStr string
-	if err := value.Decode(&domainStr); err != nil {
-		return err
-	}
-
-	switch domainStr {
-	case "user", "system", "gui":
-		*d = Domain(domainStr)
-		return nil
-	default:
-		return fmt.Errorf("invalid domain '%s', must be one of: user, system, gui", domainStr)
-	}
-}
-
-// CustomPath represents a path with its domain type
-type CustomPath struct {
-	Domain Domain `yaml:"domain"`
+type directory struct {
 	Path   string `yaml:"path"`
+	Domain Domain `yaml:"domain"`
 }
 
-// Config represents the angel configuration structure
 type Config struct {
-	Paths []CustomPath `yaml:"paths"`
+	Dirs []directory `yaml:"dirs"`
 }
 
-// LoadConfig loads the configuration from XDG_CONFIG_HOME/angel/config.yaml or .config/angel/config.yaml
-func LoadConfig() *Config {
+func LoadConfig(ctx *kong.Context) *Config {
 	config := &Config{
-		Paths: []CustomPath{},
+		Dirs: []directory{},
 	}
 
-	// Try XDG_CONFIG_HOME first, then fallback to .config
-	var configDir string
-	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
-		configDir = filepath.Join(xdgConfigHome, "angel")
-	} else {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return config // Return empty config if we can't get home dir
-		}
-		configDir = filepath.Join(homeDir, ".config", "angel")
+	configPath := getConfigPath()
+	if configPath == nil {
+		return config // Return empty config if none found
 	}
 
-	configPath := filepath.Join(configDir, "config.yaml")
+	parseConfig(*configPath, config, ctx)
 
-	// Check if config file exists
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return config // Return empty config if file doesn't exist
+	// expand ~ in config paths
+	for _, dir := range config.Dirs {
+		dir.Path = os.ExpandEnv(dir.Path)
 	}
 
-	// Read and parse the config file
-	data, err := os.ReadFile(configPath)
+	return config
+}
+
+func parseConfig(path string, config *Config, ctx *kong.Context) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return config // Return empty config if we can't read the file
+		ctx.Errorf("failed to read config file: %s", err)
+		ctx.Exit(1)
 	}
 
 	err = yaml.Unmarshal(data, config)
 	if err != nil {
-		return config // Return empty config if we can't parse the YAML
+		ctx.Errorf("invalid config file: %s", err)
+		ctx.Exit(1)
 	}
+}
 
-	return config
+func getConfigPath() *string {
+	var path string
+	if _, err := os.Stat(filepath.Join(os.Getenv("HOME"), ".angelrc")); err == nil {
+		path = filepath.Join(os.Getenv("HOME"), ".angelrc")
+	}
+	if _, err := os.Stat(filepath.Join(getXDGConfigHome(), "angel", ".angelrc")); err == nil {
+		path = filepath.Join(getXDGConfigHome(), "angel", ".angelrc")
+	}
+	return &path
+}
+
+func getXDGConfigHome() string {
+	confDir := os.Getenv("XDG_CONFIG_HOME")
+	if confDir == "" {
+		confDir = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+	return confDir
 }

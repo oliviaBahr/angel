@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os/exec"
 
 	"angel/src/core"
+	"angel/src/core/launchctl"
 
 	"github.com/alecthomas/kong"
 )
@@ -15,8 +15,7 @@ type StopCmd struct {
 
 func (s *StopCmd) Run(angel *core.Angel, ctx *kong.Context) error {
 	return angel.WithMatch(s.Name, false, ctx, func(daemon core.Daemon) error {
-		// Use bootout to remove the service from the domain
-		output, err := exec.Command("launchctl", "bootout", daemon.Domain, daemon.SourcePath).Output()
+		output, err := launchctl.Kill(daemon)
 		if err != nil {
 			return err
 		}

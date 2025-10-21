@@ -3,218 +3,88 @@ package core
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	fp "path/filepath"
+	"reflect"
 	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/alecthomas/kong"
-	"howett.net/plist"
+	"github.com/charmbracelet/log"
 )
 
-// Angel manages all daemon information
 type Angel struct {
-	UserDirs    []string
-	SystemDirs  []string
-	GuiDirs     []string
-	CustomPaths []CustomPath
-	AllDirs     []string
-	AllPaths    []string
-	Uid         string
-	IsRoot      bool
-	Daemons     map[string]Daemon
+	Daemons map[string]Daemon
+	IsRoot  bool
 }
 
-func LoadDaemons() *Angel {
-	// Load configuration from YAML file
-	cfg := LoadConfig()
+func LoadAngel(ctx *kong.Context) *Angel {
+	cfg := LoadConfig(ctx)
+	daemons := loadDaemons(cfg)
 
-	a := &Angel{
-		UserDirs:    []string{filepath.Join(os.Getenv("HOME"), "Library/LaunchAgents"), "/Library/LaunchAgents"},
-		SystemDirs:  []string{"/Library/LaunchDaemons", "/System/Library/LaunchDaemons"},
-		GuiDirs:     []string{},
-		CustomPaths: []CustomPath{},
-		AllDirs:     []string{},
-		AllPaths:    []string{},
-		Uid:         strconv.Itoa(os.Geteuid()),
-		IsRoot:      os.Geteuid() == 0,
-		Daemons:     make(map[string]Daemon),
+	return &Angel{
+		Daemons: daemons,
+		IsRoot:  os.Geteuid() == 0,
 	}
+}
 
-	// Load custom paths from config
-	a.CustomPaths = cfg.Paths
+func loadDaemons(cfg *Config) map[string]Daemon {
+	daemons := make(map[string]Daemon)
+	plistDirs := loadPlistDirectories(cfg)
 
-	// Add all directories to AllDirs
-	a.AllDirs = append(a.AllDirs, a.UserDirs...)
-	a.AllDirs = append(a.AllDirs, a.SystemDirs...)
-	a.AllDirs = append(a.AllDirs, a.GuiDirs...)
-
-	// Process custom paths from config
-	for _, customPath := range a.CustomPaths {
-		path := customPath.Path
-		if info, err := os.Stat(path); err == nil {
-			if info.IsDir() {
-				a.AllDirs = append(a.AllDirs, path)
-			} else {
-				a.AllPaths = append(a.AllPaths, path)
-			}
-		}
-	}
-	// Process directories (find all .plist files in each directory)
-	for _, dir := range a.AllDirs {
-		matches, err := filepath.Glob(filepath.Join(dir, "*.plist"))
-		if err != nil {
+	for _, plistDir := range plistDirs {
+		matches, err := fp.Glob(plistDir.Path + "/*.plist")
+		if err != nil || matches == nil {
 			continue
-		}
-
-		// Determine domain based on directory location
-		var domain string
-		if contains(a.UserDirs, dir) {
-			domain = "user" + "/" + a.Uid
-		} else if contains(a.SystemDirs, dir) {
-			domain = "system"
-		} else if contains(a.GuiDirs, dir) {
-			domain = "gui" + "/" + a.Uid
-		} else {
-			// Check if this directory is from a custom path
-			foundCustomDomain := false
-			for _, customPath := range a.CustomPaths {
-				if customPath.Path == dir {
-					domain = string(customPath.Domain)
-					foundCustomDomain = true
-					break
-				}
-			}
-			if !foundCustomDomain {
-				// Fallback to default domain mapping
-				seshToDomain := map[string]string{
-					"Aqua":        "gui" + "/" + a.Uid,
-					"Background":  "user" + "/" + a.Uid,
-					"LoginWindow": "user" + "/" + a.Uid,
-					"System":      "system",
-				}
-				domain = seshToDomain["Background"] // Default fallback
-			}
 		}
 
 		for _, filename := range matches {
-			// Parse the plist file to extract all properties
-			var daemon Daemon
-			daemon.Name = strings.TrimSuffix(filepath.Base(filename), ".plist")
-			daemon.SourcePath = filename
-
-			content, err := os.ReadFile(filename)
-			if err != nil {
-				// This is a non-fatal error during daemon loading, continue processing
-				continue
-			}
-
-			decoder := plist.NewDecoder(strings.NewReader(string(content)))
-			decoder.Decode(&daemon)
-
-			// Use directory-based domain, but allow plist to override if it has LimitLoadToSessionType
-			if daemon.LimitLoadToSessionType != "" {
-				seshToDomain := map[string]string{
-					"Aqua":        "gui" + "/" + a.Uid,
-					"Background":  "user" + "/" + a.Uid,
-					"LoginWindow": "user" + "/" + a.Uid,
-					"System":      "system",
-				}
-				if mappedDomain, exists := seshToDomain[daemon.LimitLoadToSessionType]; exists {
-					domain = mappedDomain
-				}
-			}
-
-			daemon.Domain = domain
-			a.Daemons[daemon.Name] = daemon
+			daemon := NewDaemon(filename, plistDir.Domain, plistDir.ForUseBy)
+			daemons[daemon.Name] = daemon
 		}
 	}
 
-	// Process individual files
-	for _, filePath := range a.AllPaths {
-		// Only process .plist files
-		if filepath.Ext(filePath) != ".plist" {
-			continue
-		}
-
-		// Determine domain based on file location
-		var domain string
-		// Check if this file is from a custom path
-		foundCustomDomain := false
-		for _, customPath := range a.CustomPaths {
-			if customPath.Path == filePath {
-				domain = string(customPath.Domain)
-				foundCustomDomain = true
-				break
-			}
-		}
-		if !foundCustomDomain {
-			// For individual files, we need to determine domain based on which directory they came from
-			// Since files are processed from AllPaths, we'll use a fallback approach
-			seshToDomain := map[string]string{
-				"Aqua":        "gui" + "/" + a.Uid,
-				"Background":  "user" + "/" + a.Uid,
-				"LoginWindow": "user" + "/" + a.Uid,
-				"System":      "system",
-			}
-			domain = seshToDomain["Background"] // Default fallback
-		}
-
-		// Parse the plist file to extract all properties
-		var daemon Daemon
-		daemon.Name = strings.TrimSuffix(filepath.Base(filePath), ".plist")
-		daemon.SourcePath = filePath
-
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			// This is a non-fatal error during daemon loading, continue processing
-			continue
-		}
-
-		decoder := plist.NewDecoder(strings.NewReader(string(content)))
-		decoder.Decode(&daemon)
-
-		// Use directory-based domain, but allow plist to override if it has LimitLoadToSessionType
-		if daemon.LimitLoadToSessionType != "" {
-			seshToDomain := map[string]string{
-				"Aqua":        "gui" + "/" + a.Uid,
-				"Background":  "user" + "/" + a.Uid,
-				"LoginWindow": "user" + "/" + a.Uid,
-				"System":      "system",
-			}
-			if mappedDomain, exists := seshToDomain[daemon.LimitLoadToSessionType]; exists {
-				domain = mappedDomain
-			}
-		}
-
-		daemon.Domain = domain
-		a.Daemons[daemon.Name] = daemon
-	}
-
-	return a
+	return daemons
 }
 
-// Helper function to check if a string slice contains a specific string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
+func loadPlistDirectories(cfg *Config) []PlistDir {
+	home := userHome()
+	dirs := []PlistDir{
+		{Path: "/System/Library/LaunchDaemons", Domain: DomainSystem, ForUseBy: ForApple},
+		{Path: "/System/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForApple},
+		{Path: "/Library/LaunchDaemons", Domain: DomainSystem, ForUseBy: ForThirdParty},
+		{Path: "/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForThirdParty},
+		{Path: home + "/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForUser},
+		{Path: home + "/.config/angel/user", Domain: DomainUser, ForUseBy: ForAngel},
+		{Path: home + "/.config/angel/system", Domain: DomainSystem, ForUseBy: ForAngel},
+		{Path: home + "/.config/angel/gui", Domain: DomainGui, ForUseBy: ForAngel},
 	}
-	return false
+
+	// Add user-defined directories from config
+	for _, customDir := range cfg.Dirs {
+		dirs = append(dirs, PlistDir{
+			Path:     customDir.Path,
+			Domain:   customDir.Domain,
+			ForUseBy: ForAngel,
+		})
+	}
+
+	return dirs
 }
 
-// PatternForGrep returns a pattern for grep matching
-func (a *Angel) PatternForGrep(s string, exact bool) string {
-	if exact {
-		return fmt.Sprintf("^%s$", s)
+func userHome() (dir string) {
+	dir = os.Getenv("HOME")
+	if dir == "/var/root" {
+		log.Error("running as root user not supported")
+		os.Exit(1)
 	}
-	return s
+	return dir
 }
 
 // WithMatch executes a callback function with daemons matching the query
-func (a *Angel) WithMatch(query string, exact bool, ctx *kong.Context, fn interface{}) error {
-	pattern := regexp.MustCompile("(?i)" + regexp.QuoteMeta(a.PatternForGrep(query, exact)))
+func (a *Angel) WithMatch(query string, exact bool, ctx *kong.Context, execFn interface{}) error {
+	if exact {
+		query = fmt.Sprintf("^%s$", query)
+	}
+	pattern := regexp.MustCompile("(?i)" + regexp.QuoteMeta(query))
 	var matches []Daemon
 
 	for agent, daemon := range a.Daemons {
@@ -227,27 +97,16 @@ func (a *Angel) WithMatch(query string, exact bool, ctx *kong.Context, fn interf
 		if query != "" {
 			ctx.Errorf("No daemon found matching '%s'", query)
 		}
-		os.Exit(0)
+		ctx.Exit(0)
 	}
 
-	switch f := fn.(type) {
-	case func(Daemon) error:
-		if len(matches) > 1 {
-			ctx.Errorf("Multiple daemons found matching '%s':", query)
-			a.PrintDaemons(matches)
-			os.Exit(0)
-		}
-		return f(matches[0])
-	case func([]Daemon) error:
-		return f(matches)
+	inputType := reflect.TypeOf(execFn).In(0)
+	switch inputType {
+	case reflect.TypeOf([]Daemon{}):
+		return execFn.(func([]Daemon) error)(matches)
+	case reflect.TypeOf(Daemon{}):
+		return execFn.(func(Daemon) error)(matches[0])
 	default:
-		return fmt.Errorf("callback must be func(Daemon) error or func([]Daemon) error")
-	}
-}
-
-// PrintDaemons prints the names of the given daemons
-func (a *Angel) PrintDaemons(daemons []Daemon) {
-	for _, daemon := range daemons {
-		fmt.Println(daemon.Name)
+		panic("this should never happen. callback must be func(Daemon) error or func([]Daemon)")
 	}
 }
