@@ -3,25 +3,29 @@ package cmd
 import (
 	"fmt"
 
+	"angel/src/cmd/launchctl"
 	"angel/src/core"
-	"angel/src/core/config"
-	"angel/src/core/launchctl"
 
-	"github.com/alecthomas/kong"
+	"github.com/spf13/cobra"
 )
 
-type StopCmd struct {
-	Name string `arg:"" help:"Service name to stop."`
-}
+func NewStopCmd(angel *core.Angel) *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop [NAME]",
+		Short: "Stop a service.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
 
-func (s *StopCmd) Run(a *core.Angel, config *config.Config, ctx *kong.Context) error {
-	return a.Daemons.WithMatch(s.Name, false, ctx, func(daemon core.Daemon) error {
-		output, err := launchctl.Kill(daemon)
-		if err != nil {
-			return err
-		}
-		fmt.Print(string(output))
-		fmt.Printf("stopped %s\n", daemon.Name)
-		return nil
-	})
+			return angel.Daemons.WithMatch(name, false, func(daemon core.Daemon) error {
+				output, err := launchctl.Kill(daemon)
+				if err != nil {
+					return err
+				}
+				fmt.Print(string(output))
+				fmt.Printf("stopped %s\n", daemon.Name)
+				return nil
+			})
+		},
+	}
 }

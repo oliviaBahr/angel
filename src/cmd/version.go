@@ -3,15 +3,18 @@ package cmd
 import (
 	"fmt"
 
-	"angel/src/core"
-	"angel/src/core/config"
-
-	"github.com/alecthomas/kong"
+	"github.com/spf13/cobra"
 )
 
-type VersionCmd struct{}
+const VERSION = "0.1.0"
 
-func (v *VersionCmd) Run(a *core.Angel, config *config.Config, ctx *kong.Context) error {
-	fmt.Printf("angel version %s\n", "0.1.0")
-	return nil
+func NewVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show version.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Printf("angel version %s\n", VERSION)
+			return nil
+		},
+	}
 }

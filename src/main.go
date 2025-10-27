@@ -1,36 +1,48 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"angel/src/cmd"
 	"angel/src/core"
-	"angel/src/core/config"
 
-	"github.com/alecthomas/kong"
+	"github.com/spf13/cobra"
 )
 
 const VERSION = "0.1.0"
 
-var cli struct {
-	Start   cmd.StartCmd   `cmd:"" help:"Start a service."`
-	Stop    cmd.StopCmd    `cmd:"" help:"Stop a service."`
-	Restart cmd.RestartCmd `cmd:"" help:"Restart a service."`
-	Status  cmd.StatusCmd  `cmd:"" help:"Show service status."`
-	List    cmd.ListCmd    `cmd:"" aliases:"ls" help:"List services."`
-	Show    cmd.ShowCmd    `cmd:"" help:"Show service daemon."`
-	Version cmd.VersionCmd `cmd:"" help:"Show version."`
-}
-
 func main() {
-	// Initialize daemons at startup
+	// Load Angel instance before any command runs
+	angel, err := core.LoadAngel()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading angel: %v\n", err)
+		os.Exit(1)
+	}
 
-	ctx := kong.Parse(&cli,
-		kong.Name("angel"),
-		kong.Description("macOS launchd service manager"),
-		kong.UsageOnError(),
-		kong.Help(core.CustomHelpPrinter),
-	)
+	// Create root command
+	rootCmd := &cobra.Command{
+		Use:     "angel",
+		Short:   "macOS launchd service manager",
+		Version: VERSION,
+	}
 
-	angel := core.LoadAngel(ctx)
-	err := ctx.Run(angel, config.LoadedConfig, ctx)
-	ctx.FatalIfErrorf(err)
+	// Add commands with angel passed via closure
+	rootCmd.AddCommand(cmd.NewStartCmd(angel))
+	rootCmd.AddCommand(cmd.NewStopCmd(angel))
+	rootCmd.AddCommand(cmd.NewRestartCmd(angel))
+	rootCmd.AddCommand(cmd.NewStatusCmd(angel))
+	rootCmd.AddCommand(cmd.NewListCmd(angel))
+	rootCmd.AddCommand(cmd.NewShowCmd(angel))
+	rootCmd.AddCommand(cmd.NewVersionCmd())
+
+	for _, cmd := range rootCmd.Commands() {
+		cmd.SetUsageFunc(core.UsageStringFunc(cmd))
+	}
+
+	// Execute
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }

@@ -5,23 +5,31 @@ import (
 	"os"
 
 	"angel/src/core"
-	"angel/src/core/config"
 
-	"github.com/alecthomas/kong"
+	"github.com/spf13/cobra"
 )
 
-type ShowCmd struct {
-	Name   string `arg:"" help:"Service name to show."`
-	Format string `short:"f" help:"Format to show." enum:"xml,json,pretty" default:"pretty" placeholder:""`
-}
+func NewShowCmd(angel *core.Angel) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "show [NAME]",
+		Short: "Show service daemon.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			_ = args
 
-func (s *ShowCmd) Run(a *core.Angel, config *config.Config, ctx *kong.Context) error {
-	return a.Daemons.WithMatch(s.Name, false, ctx, func(daemon core.Daemon) error {
-		content, err := os.ReadFile(daemon.SourcePath)
-		if err != nil {
-			return err
-		}
-		fmt.Print(string(content))
-		return nil
-	})
+			return angel.Daemons.WithMatch(name, false, func(daemon core.Daemon) error {
+				content, err := os.ReadFile(daemon.SourcePath)
+				if err != nil {
+					return err
+				}
+				fmt.Print(string(content))
+				return nil
+			})
+		},
+	}
+
+	cmd.Flags().StringP("format", "f", "pretty", "Format to show. (xml|json|pretty)")
+
+	return cmd
 }

@@ -1,27 +1,38 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	fp "path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
-
-	"angel/src/core/constants"
 
 	"howett.net/plist"
 )
 
-type PlistDir struct {
+type plistDir struct {
 	Path     string
-	Domain   constants.Domain
-	ForUseBy constants.ForWhom
+	Domain   Domain
+	ForUseBy ForWhom
+}
+
+var plistDirs = []plistDir{
+	{Path: "/System/Library/LaunchDaemons", Domain: DomainSystem, ForUseBy: ForApple},
+	{Path: "/System/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForApple},
+	{Path: "/Library/LaunchDaemons", Domain: DomainSystem, ForUseBy: ForThirdParty},
+	{Path: "/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForThirdParty},
+	{Path: userHome() + "/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForUser},
+	{Path: userHome() + "/.config/angel/user", Domain: DomainUser, ForUseBy: ForAngel},
+	{Path: userHome() + "/.config/angel/system", Domain: DomainSystem, ForUseBy: ForAngel},
+	{Path: userHome() + "/.config/angel/gui", Domain: DomainGui, ForUseBy: ForAngel},
 }
 
 type Daemon struct {
 	Name       string
 	SourcePath string
 	Domain     string
-	ForUseBy   constants.ForWhom
+	ForUseBy   ForWhom
 	Plist      *Plist
 }
 
@@ -43,12 +54,12 @@ type Plist struct {
 	LimitLoadToSessionType string            `plist:"LimitLoadToSessionType,omitempty"` // Session type limit
 }
 
-func NewDaemon(filename string, dirDomain constants.Domain, forUseBy constants.ForWhom) Daemon {
+func NewDaemon(filename string, dirDomain Domain, forUseBy ForWhom) Daemon {
 	plistData := &Plist{}
 	content, _ := os.ReadFile(filename)
 	_, _ = plist.Unmarshal(content, plistData)
 	domain := domainFromSessionType(plistData.LimitLoadToSessionType)
-	if domain == constants.DomainUnknown {
+	if domain == DomainUnknown {
 		domain = dirDomain
 	}
 
@@ -61,30 +72,103 @@ func NewDaemon(filename string, dirDomain constants.Domain, forUseBy constants.F
 	}
 }
 
-func domainFromSessionType(sessionType string) constants.Domain {
+func domainFromSessionType(sessionType string) Domain {
 	switch sessionType {
 	case "Aqua":
-		return constants.DomainGui
+		return DomainGui
 	case "Background":
-		return constants.DomainUser
+		return DomainUser
 	case "LoginWindow":
-		return constants.DomainUser
+		return DomainUser
 	case "System":
-		return constants.DomainSystem
+		return DomainSystem
 	default:
-		return constants.DomainUnknown
+		return DomainUnknown
 	}
 }
 
-func domainStr(uid int, domain constants.Domain) string {
+func domainStr(uid int, domain Domain) string {
 	switch domain {
-	case constants.DomainSystem:
+	case DomainSystem:
 		return "system"
-	case constants.DomainUser:
+	case DomainUser:
 		return "user/" + strconv.Itoa(uid)
-	case constants.DomainGui:
+	case DomainGui:
 		return "gui/" + strconv.Itoa(uid)
 	default:
 		return "Unknown"
 	}
+}
+
+type DaemonRegistry struct {
+	Map map[string]Daemon
+}
+
+func NewDaemonRegistry() *DaemonRegistry {
+	// Add user-defined plist directories
+	for _, cfgDir := range LoadedConfig.Directories {
+		plistDirs = append(plistDirs, plistDir{
+			Path:     cfgDir.Path,
+			Domain:   cfgDir.Domain,
+			ForUseBy: ForUser,
+		})
+	}
+
+	daemonRegistry := &DaemonRegistry{
+		Map: make(map[string]Daemon),
+	}
+	for _, plistDir := range plistDirs {
+		matches, err := fp.Glob(plistDir.Path + "/*.plist")
+		if err != nil || matches == nil {
+			continue
+		}
+		for _, filename := range matches {
+			daemon := NewDaemon(filename, plistDir.Domain, plistDir.ForUseBy)
+			daemonRegistry.Map[daemon.Name] = daemon
+		}
+	}
+	return daemonRegistry
+}
+
+func (r *DaemonRegistry) WithMatch(query string, exact bool, execFn func(Daemon) error) error {
+	matches, err := r.findMatches(query, exact)
+	if err != nil {
+		return err
+	}
+	return execFn(matches[0])
+}
+
+func (r *DaemonRegistry) WithMatches(query string, exact bool, execFn func(Daemon) error) error {
+	matches, err := r.findMatches(query, exact)
+	if err != nil {
+		return err
+	}
+	for _, daemon := range matches {
+		if err := execFn(daemon); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *DaemonRegistry) findMatches(query string, exact bool) ([]Daemon, error) {
+	if exact {
+		query = fmt.Sprintf("^%s$", query)
+	}
+	pattern := regexp.MustCompile("(?i)" + regexp.QuoteMeta(query))
+	var matches []Daemon
+
+	for _, daemon := range r.Map {
+		if pattern.MatchString(daemon.Name) {
+			matches = append(matches, daemon)
+		}
+	}
+
+	if len(matches) == 0 {
+		if query != "" {
+			return nil, fmt.Errorf("no daemon found matching '%s'", query)
+		}
+		return []Daemon{}, nil
+	}
+	return matches, nil
 }

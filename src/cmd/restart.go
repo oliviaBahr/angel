@@ -3,25 +3,29 @@ package cmd
 import (
 	"fmt"
 
+	"angel/src/cmd/launchctl"
 	"angel/src/core"
-	"angel/src/core/config"
-	"angel/src/core/launchctl"
 
-	"github.com/alecthomas/kong"
+	"github.com/spf13/cobra"
 )
 
-type RestartCmd struct {
-	Name string `arg:"" help:"Service name to restart."`
-}
+func NewRestartCmd(angel *core.Angel) *cobra.Command {
+	return &cobra.Command{
+		Use:   "restart [NAME]",
+		Short: "Restart a service.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
 
-func (r *RestartCmd) Run(a *core.Angel, config *config.Config, ctx *kong.Context) error {
-	return a.Daemons.WithMatch(r.Name, false, ctx, func(daemon core.Daemon) error {
-		output, err := launchctl.KickstartKill(daemon)
-		if err != nil {
-			return err
-		}
-		fmt.Print(string(output))
-		fmt.Printf("restarted %s\n", daemon.Name)
-		return nil
-	})
+			return angel.Daemons.WithMatch(name, false, func(daemon core.Daemon) error {
+				output, err := launchctl.KickstartKill(daemon)
+				if err != nil {
+					return err
+				}
+				fmt.Print(string(output))
+				fmt.Printf("restarted %s\n", daemon.Name)
+				return nil
+			})
+		},
+	}
 }

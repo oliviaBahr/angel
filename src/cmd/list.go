@@ -1,31 +1,39 @@
 package cmd
 
 import (
-	"angel/src/core"
-	"angel/src/core/config"
-	"angel/src/core/constants"
-	"fmt"
 	fp "path/filepath"
 
-	"github.com/alecthomas/kong"
+	"angel/src/core"
+
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/spf13/cobra"
 )
 
-type ListCmd struct {
-	Pattern  string `arg:"" optional:"" help:"Pattern to filter services."`
-	Exact    bool   `short:"e" help:"Exact match."`
-	TestFlag bool   `help:"Test flag without short version."`
-}
+func NewListCmd(angel *core.Angel) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "list [PATTERN]",
+		Aliases: []string{"ls"},
+		Short:   "List services.",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pattern := ""
+			if len(args) > 0 {
+				pattern = args[0]
+			}
+			exact, _ := cmd.Flags().GetBool("exact")
 
-func (l *ListCmd) Run(a *core.Angel, config *config.Config, ctx *kong.Context) error {
-	t := table.New()
-	err := a.Daemons.WithMatches(l.Pattern, false, ctx, func(daemon core.Daemon) error {
-		if daemon.ForUseBy != constants.ForApple {
-			srcDir := fp.Dir(daemon.SourcePath)
-			t.Row(daemon.Name, srcDir)
-		}
-		return nil
-	})
-	fmt.Println(t.String())
-	return err
+			t := table.New()
+			return angel.Daemons.WithMatches(pattern, exact, func(daemon core.Daemon) error {
+				if daemon.ForUseBy != core.ForApple {
+					srcDir := fp.Dir(daemon.SourcePath)
+					t.Row(daemon.Name, srcDir)
+				}
+				return nil
+			})
+		},
+	}
+
+	cmd.Flags().BoolP("exact", "e", false, "Exact match.")
+
+	return cmd
 }

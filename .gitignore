@@ -1,4 +1,4 @@
 *.md
 go.sum
 build/
-./angel
+angel

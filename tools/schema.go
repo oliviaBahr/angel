@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"angel/src/core/config"
+	"angel/src/core"
 
 	"github.com/invopop/jsonschema"
 )
@@ -17,7 +17,7 @@ func main() {
 	r := jsonschema.Reflector{}
 
 	// Generate schema for Config struct
-	schema := r.Reflect(&config.Config{})
+	schema := r.Reflect(&core.Config{})
 
 	// Add custom schema properties
 	schema.ID = "https://angel.dev/schema/config.json"
