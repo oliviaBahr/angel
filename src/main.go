@@ -3,6 +3,7 @@ package main
 import (
 	"angel/src/cmd"
 	"angel/src/core"
+	"angel/src/core/config"
 
 	"github.com/alecthomas/kong"
 )
@@ -30,6 +31,6 @@ func main() {
 	)
 
 	angel := core.LoadAngel(ctx)
-	err := ctx.Run(angel, ctx)
+	err := ctx.Run(angel, config.LoadedConfig, ctx)
 	ctx.FatalIfErrorf(err)
 }

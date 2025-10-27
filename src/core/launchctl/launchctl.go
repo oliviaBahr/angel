@@ -2,7 +2,6 @@ package launchctl
 
 import (
 	"angel/src/core"
-	"angel/src/core/launchctl/parser"
 	"os/exec"
 )
 
@@ -38,13 +37,13 @@ func Print(daemon core.Daemon) (output []byte, error error) {
 	return launchctl("print", serviceTarget(daemon))
 }
 
-// the pride and joy of this package
-func Status(daemon core.Daemon) (*parser.LaunchctlData, error) {
+// the pride and joy of this package; the shame of launchctl
+func Status(daemon core.Daemon) (*LaunchctlData, error) {
 	printOutput, err := Print(daemon)
 	if err != nil {
 		return nil, err
 	}
-	return parser.ParseLaunchctlPrint(printOutput)
+	return parseLaunchctlPrint(printOutput)
 }
 
 // Helpers

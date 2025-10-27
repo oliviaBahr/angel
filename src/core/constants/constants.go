@@ -1,0 +1,19 @@
+package constants
+
+type Domain string
+
+const (
+	DomainSystem  Domain = "system"
+	DomainUser    Domain = "user"
+	DomainGui     Domain = "gui"
+	DomainUnknown Domain = "unknown"
+)
+
+type ForWhom int
+
+const (
+	ForUser ForWhom = iota
+	ForApple
+	ForThirdParty
+	ForAngel
+)

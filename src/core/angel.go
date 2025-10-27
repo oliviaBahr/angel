@@ -1,60 +1,42 @@
 package core
 
 import (
-	"fmt"
 	"os"
-	fp "path/filepath"
-	"regexp"
+
+	"angel/src/core/config"
+	"angel/src/core/constants"
 
 	"github.com/alecthomas/kong"
 	"github.com/charmbracelet/log"
 )
 
 type Angel struct {
-	Daemons map[string]Daemon
+	Daemons *DaemonRegistry
 	IsRoot  bool
 }
 
 func LoadAngel(ctx *kong.Context) *Angel {
-	cfg := LoadConfig(ctx)
-	daemons := loadDaemons(cfg)
+	config.LoadConfig(ctx)
+	plistDirs := loadPlistDirectories(config.LoadedConfig)
+	daemonRegistry := NewDaemonRegistry(plistDirs)
 
 	return &Angel{
-		Daemons: daemons,
+		Daemons: daemonRegistry,
 		IsRoot:  os.Geteuid() == 0,
 	}
 }
 
-func loadDaemons(cfg *Config) map[string]Daemon {
-	daemons := make(map[string]Daemon)
-	plistDirs := loadPlistDirectories(cfg)
-
-	for _, plistDir := range plistDirs {
-		matches, err := fp.Glob(plistDir.Path + "/*.plist")
-		if err != nil || matches == nil {
-			continue
-		}
-
-		for _, filename := range matches {
-			daemon := NewDaemon(filename, plistDir.Domain, plistDir.ForUseBy)
-			daemons[daemon.Name] = daemon
-		}
-	}
-
-	return daemons
-}
-
-func loadPlistDirectories(cfg *Config) []PlistDir {
+func loadPlistDirectories(cfg *config.Config) []PlistDir {
 	home := userHome()
 	dirs := []PlistDir{
-		{Path: "/System/Library/LaunchDaemons", Domain: DomainSystem, ForUseBy: ForApple},
-		{Path: "/System/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForApple},
-		{Path: "/Library/LaunchDaemons", Domain: DomainSystem, ForUseBy: ForThirdParty},
-		{Path: "/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForThirdParty},
-		{Path: home + "/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForUser},
-		{Path: home + "/.config/angel/user", Domain: DomainUser, ForUseBy: ForAngel},
-		{Path: home + "/.config/angel/system", Domain: DomainSystem, ForUseBy: ForAngel},
-		{Path: home + "/.config/angel/gui", Domain: DomainGui, ForUseBy: ForAngel},
+		{Path: "/System/Library/LaunchDaemons", Domain: constants.DomainSystem, ForUseBy: constants.ForApple},
+		{Path: "/System/Library/LaunchAgents", Domain: constants.DomainUser, ForUseBy: constants.ForApple},
+		{Path: "/Library/LaunchDaemons", Domain: constants.DomainSystem, ForUseBy: constants.ForThirdParty},
+		{Path: "/Library/LaunchAgents", Domain: constants.DomainUser, ForUseBy: constants.ForThirdParty},
+		{Path: home + "/Library/LaunchAgents", Domain: constants.DomainUser, ForUseBy: constants.ForUser},
+		{Path: home + "/.config/angel/user", Domain: constants.DomainUser, ForUseBy: constants.ForAngel},
+		{Path: home + "/.config/angel/system", Domain: constants.DomainSystem, ForUseBy: constants.ForAngel},
+		{Path: home + "/.config/angel/gui", Domain: constants.DomainGui, ForUseBy: constants.ForAngel},
 	}
 
 	// Add user-defined directories from config
@@ -62,7 +44,7 @@ func loadPlistDirectories(cfg *Config) []PlistDir {
 		dirs = append(dirs, PlistDir{
 			Path:     cfgDir.Path,
 			Domain:   cfgDir.Domain,
-			ForUseBy: ForAngel,
+			ForUseBy: constants.ForAngel,
 		})
 	}
 
@@ -76,44 +58,4 @@ func userHome() (dir string) {
 		os.Exit(1)
 	}
 	return dir
-}
-
-// executes a callback function with the first daemon matching the query
-func (a *Angel) WithMatch(query string, exact bool, ctx *kong.Context, execFn func(Daemon) error) error {
-	matches := a.findMatches(query, exact, ctx)
-	return execFn(matches[0])
-}
-
-// executes a callback function with all daemons matching the query
-func (a *Angel) WithMatches(query string, exact bool, ctx *kong.Context, execFn func(Daemon) error) error {
-	matches := a.findMatches(query, exact, ctx)
-	for _, daemon := range matches {
-		if err := execFn(daemon); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// findMatches finds all daemons matching the query pattern
-func (a *Angel) findMatches(query string, exact bool, ctx *kong.Context) []Daemon {
-	if exact {
-		query = fmt.Sprintf("^%s$", query)
-	}
-	pattern := regexp.MustCompile("(?i)" + regexp.QuoteMeta(query))
-	var matches []Daemon
-
-	for daemonName, daemon := range a.Daemons {
-		if pattern.MatchString(daemonName) {
-			matches = append(matches, daemon)
-		}
-	}
-
-	if len(matches) == 0 {
-		if query != "" {
-			ctx.Errorf("No daemon found matching '%s'", query)
-		}
-		ctx.Exit(0)
-	}
-	return matches
 }

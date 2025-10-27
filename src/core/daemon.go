@@ -6,29 +6,22 @@ import (
 	"strconv"
 	"strings"
 
+	"angel/src/core/constants"
+
 	"howett.net/plist"
-)
-
-type ForWhom int
-
-const (
-	ForUser ForWhom = iota
-	ForApple
-	ForThirdParty
-	ForAngel
 )
 
 type PlistDir struct {
 	Path     string
-	Domain   Domain
-	ForUseBy ForWhom
+	Domain   constants.Domain
+	ForUseBy constants.ForWhom
 }
 
 type Daemon struct {
 	Name       string
 	SourcePath string
 	Domain     string
-	ForUseBy   ForWhom
+	ForUseBy   constants.ForWhom
 	Plist      *Plist
 }
 
@@ -50,12 +43,12 @@ type Plist struct {
 	LimitLoadToSessionType string            `plist:"LimitLoadToSessionType,omitempty"` // Session type limit
 }
 
-func NewDaemon(filename string, dirDomain Domain, forUseBy ForWhom) Daemon {
+func NewDaemon(filename string, dirDomain constants.Domain, forUseBy constants.ForWhom) Daemon {
 	plistData := &Plist{}
 	content, _ := os.ReadFile(filename)
 	_, _ = plist.Unmarshal(content, plistData)
 	domain := domainFromSessionType(plistData.LimitLoadToSessionType)
-	if domain == DomainUnknown {
+	if domain == constants.DomainUnknown {
 		domain = dirDomain
 	}
 
@@ -63,34 +56,34 @@ func NewDaemon(filename string, dirDomain Domain, forUseBy ForWhom) Daemon {
 		Name:       strings.TrimSuffix(fp.Base(filename), ".plist"),
 		SourcePath: filename,
 		Plist:      plistData,
-		Domain:     domainStr(strconv.Itoa(os.Geteuid()), domain),
+		Domain:     domainStr(os.Geteuid(), domain),
 		ForUseBy:   forUseBy,
 	}
 }
 
-func domainFromSessionType(sessionType string) Domain {
+func domainFromSessionType(sessionType string) constants.Domain {
 	switch sessionType {
 	case "Aqua":
-		return DomainGui
+		return constants.DomainGui
 	case "Background":
-		return DomainUser
+		return constants.DomainUser
 	case "LoginWindow":
-		return DomainUser
+		return constants.DomainUser
 	case "System":
-		return DomainSystem
+		return constants.DomainSystem
 	default:
-		return DomainUnknown
+		return constants.DomainUnknown
 	}
 }
 
-func domainStr(uid string, domain Domain) string {
+func domainStr(uid int, domain constants.Domain) string {
 	switch domain {
-	case DomainSystem:
+	case constants.DomainSystem:
 		return "system"
-	case DomainUser:
-		return "user/" + uid
-	case DomainGui:
-		return "gui/" + uid
+	case constants.DomainUser:
+		return "user/" + strconv.Itoa(uid)
+	case constants.DomainGui:
+		return "gui/" + strconv.Itoa(uid)
 	default:
 		return "Unknown"
 	}

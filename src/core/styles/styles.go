@@ -1,6 +1,8 @@
 package styles
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+)
 
 var (
 	greenStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))      // light green
@@ -11,6 +13,13 @@ var (
 	indentedStyle = lipgloss.NewStyle().Padding(0, 2)
 	underStyle    = lipgloss.NewStyle().Underline(true)
 )
+
+func TableStyleFunc(row, col int) lipgloss.Style {
+	if row%2 == 0 {
+		return lipgloss.NewStyle().Faint(true)
+	}
+	return lipgloss.NewStyle()
+}
 
 func Green(s string) string {
 	return greenStyle.Render(s)

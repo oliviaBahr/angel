@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"angel/src/core"
+	"angel/src/core/config"
+	"angel/src/core/constants"
 	"fmt"
 	fp "path/filepath"
 
@@ -15,10 +17,10 @@ type ListCmd struct {
 	TestFlag bool   `help:"Test flag without short version."`
 }
 
-func (l *ListCmd) Run(angel *core.Angel, ctx *kong.Context) error {
+func (l *ListCmd) Run(a *core.Angel, config *config.Config, ctx *kong.Context) error {
 	t := table.New()
-	err := angel.WithMatches(l.Pattern, false, ctx, func(daemon core.Daemon) error {
-		if daemon.ForUseBy != core.ForApple {
+	err := a.Daemons.WithMatches(l.Pattern, false, ctx, func(daemon core.Daemon) error {
+		if daemon.ForUseBy != constants.ForApple {
 			srcDir := fp.Dir(daemon.SourcePath)
 			t.Row(daemon.Name, srcDir)
 		}

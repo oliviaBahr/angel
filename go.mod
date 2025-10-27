@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v0.4.2
 	github.com/invopop/jsonschema v0.13.0
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/viper v1.21.0
 	howett.net/plist v1.0.1
 )
