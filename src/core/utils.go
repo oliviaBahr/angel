@@ -3,6 +3,7 @@ package core
 import (
 	"angel/src/types"
 	"os"
+	fp "path/filepath"
 
 	"github.com/charmbracelet/log"
 )
@@ -16,15 +17,23 @@ func userHome() (dir string) {
 	return dir
 }
 
-func SortDaemonsByDomain(daemons []types.Daemon) map[types.Domain][]types.Daemon {
-	daemonsByDomain := map[types.Domain][]types.Daemon{
-		types.DomainSystem:  {},
-		types.DomainUser:    {},
-		types.DomainGui:     {},
-		types.DomainUnknown: {},
+func SortDaemonsByDomain(daemons []types.Daemon) map[string][]types.Daemon {
+	daemonsByDomain := map[string][]types.Daemon{
+		"system":   {},
+		"user/501": {},
+		"gui/501":  {},
+		"unknown":  {},
 	}
 	for _, daemon := range daemons {
-		daemonsByDomain[daemon.Domain] = append(daemonsByDomain[daemon.Domain], daemon)
+		daemonsByDomain[daemon.DomainStr] = append(daemonsByDomain[daemon.DomainStr], daemon)
 	}
 	return daemonsByDomain
+}
+
+func SortDaemonsByParentDir(daemons []types.Daemon) map[string][]types.Daemon {
+	daemonsByParentDir := map[string][]types.Daemon{}
+	for _, daemon := range daemons {
+		daemonsByParentDir[fp.Dir(daemon.SourcePath)] = append(daemonsByParentDir[fp.Dir(daemon.SourcePath)], daemon)
+	}
+	return daemonsByParentDir
 }

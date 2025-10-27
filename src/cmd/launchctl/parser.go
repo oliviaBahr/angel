@@ -32,6 +32,11 @@ func (l *LaunchctlData) GetInterface(key string) interface{} {
 	return nil
 }
 
+// GetAll returns all data entries as a map
+func (l *LaunchctlData) GetAll() map[string]interface{} {
+	return l.data
+}
+
 func ParseLaunchctlPrint(input []byte) (*LaunchctlData, error) {
 	lines := strings.Split(string(input), "\n")
 	if len(lines) == 0 {

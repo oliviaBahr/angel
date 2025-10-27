@@ -4,6 +4,8 @@ import (
 	"angel/src/core"
 	"angel/src/types"
 	"fmt"
+	"slices"
+	"strconv"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -27,13 +29,23 @@ func NewListCmd(angel *core.Angel) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			daemonsByDomain := core.SortDaemonsByDomain(matchingDaemons)
-			for domain, daemons := range daemonsByDomain {
-				t := table.New()
-				showDynamic, _ := cmd.Flags().GetBool("dynamic")
-				if domain == types.DomainUnknown && !showDynamic {
-					continue
-				}
+			sortBy := cmd.Flags().Lookup("sort").Value.String()
+			sortFn := core.SortDaemonsByParentDir
+			if sortBy == "domain" {
+				sortFn = core.SortDaemonsByDomain
+			}
+			sortedDaemons := sortFn(matchingDaemons)
+
+			// Get keys and sort them alphabetically
+			keys := make([]string, 0, len(sortedDaemons))
+			for key := range sortedDaemons {
+				keys = append(keys, key)
+			}
+			slices.Sort(keys)
+
+			for _, key := range keys {
+				daemons := sortedDaemons[key]
+				rows := [][]string{}
 				for _, daemon := range daemons {
 					if daemon.ForUseBy == types.ForApple {
 						showApple, _ := cmd.Flags().GetBool("apple")
@@ -41,10 +53,17 @@ func NewListCmd(angel *core.Angel) *cobra.Command {
 							continue
 						}
 					}
-					t.Row(setStatusIconColor(daemon), daemon.Name, daemon.SourcePath)
+					showDynamic, _ := cmd.Flags().GetBool("dynamic")
+					if daemon.Domain == types.DomainUnknown && !showDynamic {
+						continue
+					}
+					rows = append(rows, []string{getExitCode(daemon), daemon.Name, daemon.SourcePath})
 				}
-				fmt.Println(domain)
-				fmt.Println(lipgloss.NewStyle().Padding(0, 2).Render(t.String()))
+				if len(rows) > 0 {
+					t := table.New().Border(lipgloss.HiddenBorder()).Rows(rows...)
+					fmt.Print(lipgloss.NewStyle().Underline(true).Bold(true).Render(key))
+					fmt.Println(t.String())
+				}
 			}
 
 			return nil
@@ -54,14 +73,18 @@ func NewListCmd(angel *core.Angel) *cobra.Command {
 	cmd.Flags().BoolP("exact", "e", false, "Exact match.")
 	cmd.Flags().BoolP("apple", "a", false, "Show Apple daemons.")
 	cmd.Flags().BoolP("dynamic", "d", false, "Show dynamically loaded daemons (daemons without a plist file).")
-
+	cmd.Flags().FuncP("sort", "s", "Sort by. (parent|domain)", func(value string) error {
+		if !slices.Contains([]string{"parent", "domain"}, value) {
+			return fmt.Errorf("invalid sort value: %s", value)
+		}
+		return nil
+	})
 	return cmd
 }
 
-func setStatusIconColor(daemon types.Daemon) string {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	if daemon.LastExitCode != nil && *daemon.LastExitCode == 0 {
-		style = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+func getExitCode(daemon types.Daemon) string {
+	if daemon.LastExitCode != nil {
+		return strconv.Itoa(*daemon.LastExitCode)
 	}
-	return style.Render("●")
+	return "-"
 }
