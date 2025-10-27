@@ -32,7 +32,7 @@ func (l *LaunchctlData) GetInterface(key string) interface{} {
 	return nil
 }
 
-func parseLaunchctlPrint(input []byte) (*LaunchctlData, error) {
+func ParseLaunchctlPrint(input []byte) (*LaunchctlData, error) {
 	lines := strings.Split(string(input), "\n")
 	if len(lines) == 0 {
 		return nil, fmt.Errorf("empty input")

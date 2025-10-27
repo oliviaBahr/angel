@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// the pride of this package; the shame of launchctl
 func NewStatusCmd(angel *core.Angel) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status [NAME]",
@@ -19,8 +20,11 @@ func NewStatusCmd(angel *core.Angel) *cobra.Command {
 			name := args[0]
 
 			return angel.Daemons.WithMatch(name, false, func(daemon core.Daemon) error {
-				// Get raw launchctl output
-				deamonInfo, err := launchctl.Status(daemon)
+				printOutput, err := launchctl.Print(daemon)
+				if err != nil {
+					return fmt.Errorf("failed to get status: %w", err)
+				}
+				deamonInfo, err := launchctl.ParseLaunchctlPrint(printOutput)
 				if err != nil {
 					return fmt.Errorf("failed to get status: %w", err)
 				}

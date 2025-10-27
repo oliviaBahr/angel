@@ -37,15 +37,6 @@ func Print(daemon core.Daemon) (output []byte, error error) {
 	return launchctl("print", serviceTarget(daemon))
 }
 
-// the pride and joy of this package; the shame of launchctl
-func Status(daemon core.Daemon) (*LaunchctlData, error) {
-	printOutput, err := Print(daemon)
-	if err != nil {
-		return nil, err
-	}
-	return parseLaunchctlPrint(printOutput)
-}
-
 // Helpers
 
 func launchctl(args ...string) (output []byte, error error) {
