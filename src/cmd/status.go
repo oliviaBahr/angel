@@ -5,6 +5,7 @@ import (
 
 	"angel/src/cmd/launchctl"
 	"angel/src/core"
+	"angel/src/types"
 
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/spf13/cobra"
@@ -19,7 +20,7 @@ func NewStatusCmd(angel *core.Angel) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			return angel.Daemons.WithMatch(name, false, func(daemon core.Daemon) error {
+			return angel.Daemons.WithMatch(name, false, func(daemon types.Daemon) error {
 				printOutput, err := launchctl.Print(daemon)
 				if err != nil {
 					return fmt.Errorf("failed to get status: %w", err)
@@ -32,7 +33,7 @@ func NewStatusCmd(angel *core.Angel) *cobra.Command {
 				t := table.New().
 					Row("Name", daemon.Name).
 					Row("State", deamonInfo.Get("state")).
-					Row("Domain", daemon.Domain).
+					Row("Domain", daemon.DomainStr).
 					Row("Active Count", deamonInfo.Get("active count")).
 					Row("Source Path", deamonInfo.Get("path")).
 					Row("Type", deamonInfo.Get("type"))

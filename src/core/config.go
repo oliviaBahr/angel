@@ -1,6 +1,7 @@
 package core
 
 import (
+	"angel/src/types"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,7 +43,7 @@ func ColorHookFunc() mapstructure.DecodeHookFuncType {
 type Config struct {
 	Directories []struct {
 		Path   string
-		Domain Domain
+		Domain types.Domain
 	}
 
 	Colors struct {

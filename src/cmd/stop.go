@@ -5,6 +5,7 @@ import (
 
 	"angel/src/cmd/launchctl"
 	"angel/src/core"
+	"angel/src/types"
 
 	"github.com/spf13/cobra"
 )
@@ -17,7 +18,7 @@ func NewStopCmd(angel *core.Angel) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			return angel.Daemons.WithMatch(name, false, func(daemon core.Daemon) error {
+			return angel.Daemons.WithMatch(name, false, func(daemon types.Daemon) error {
 				output, err := launchctl.Kill(daemon)
 				if err != nil {
 					return err

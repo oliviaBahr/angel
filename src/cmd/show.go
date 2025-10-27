@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"angel/src/core"
+	"angel/src/types"
 
 	"github.com/spf13/cobra"
 )
@@ -18,7 +19,7 @@ func NewShowCmd(angel *core.Angel) *cobra.Command {
 			name := args[0]
 			_ = args
 
-			return angel.Daemons.WithMatch(name, false, func(daemon core.Daemon) error {
+			return angel.Daemons.WithMatch(name, false, func(daemon types.Daemon) error {
 				content, err := os.ReadFile(daemon.SourcePath)
 				if err != nil {
 					return err

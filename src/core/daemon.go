@@ -8,92 +8,88 @@ import (
 	"strconv"
 	"strings"
 
+	"angel/src/cmd/launchctl"
+	"angel/src/types"
+
 	"howett.net/plist"
 )
 
 type plistDir struct {
 	Path     string
-	Domain   Domain
-	ForUseBy ForWhom
+	Domain   types.Domain
+	ForUseBy types.ForWhom
 }
 
 var plistDirs = []plistDir{
-	{Path: "/System/Library/LaunchDaemons", Domain: DomainSystem, ForUseBy: ForApple},
-	{Path: "/System/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForApple},
-	{Path: "/Library/LaunchDaemons", Domain: DomainSystem, ForUseBy: ForThirdParty},
-	{Path: "/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForThirdParty},
-	{Path: userHome() + "/Library/LaunchAgents", Domain: DomainUser, ForUseBy: ForUser},
-	{Path: userHome() + "/.config/angel/user", Domain: DomainUser, ForUseBy: ForAngel},
-	{Path: userHome() + "/.config/angel/system", Domain: DomainSystem, ForUseBy: ForAngel},
-	{Path: userHome() + "/.config/angel/gui", Domain: DomainGui, ForUseBy: ForAngel},
+	{Path: "/System/Library/LaunchDaemons", Domain: types.DomainSystem, ForUseBy: types.ForApple},
+	{Path: "/System/Library/LaunchAgents", Domain: types.DomainUser, ForUseBy: types.ForApple},
+	{Path: "/System/Library/LaunchAngels", Domain: types.DomainGui, ForUseBy: types.ForApple},
+	{Path: "/Library/LaunchDaemons", Domain: types.DomainSystem, ForUseBy: types.ForThirdParty},
+	{Path: "/Library/LaunchAgents", Domain: types.DomainUser, ForUseBy: types.ForThirdParty},
+	{Path: userHome() + "/Library/LaunchAgents", Domain: types.DomainUser, ForUseBy: types.ForUser},
+	{Path: userHome() + "/.config/angel/user", Domain: types.DomainUser, ForUseBy: types.ForAngel},
+	{Path: userHome() + "/.config/angel/system", Domain: types.DomainSystem, ForUseBy: types.ForAngel},
+	{Path: userHome() + "/.config/angel/gui", Domain: types.DomainGui, ForUseBy: types.ForAngel},
 }
 
-type Daemon struct {
-	Name       string
-	SourcePath string
-	Domain     string
-	ForUseBy   ForWhom
-	Plist      *Plist
-}
-
-type Plist struct {
-	Program                string            `plist:"Program,omitempty"`                // Path to executable
-	ProgramArguments       []string          `plist:"ProgramArguments,omitempty"`       // Command line arguments
-	RunAtLoad              bool              `plist:"RunAtLoad,omitempty"`              // Start when loaded
-	KeepAlive              bool              `plist:"KeepAlive,omitempty"`              // Restart if exits
-	WorkingDirectory       string            `plist:"WorkingDirectory,omitempty"`       // Working directory
-	StandardOutPath        string            `plist:"StandardOutPath,omitempty"`        // Stdout log file
-	StandardErrorPath      string            `plist:"StandardErrorPath,omitempty"`      // Stderr log file
-	EnvironmentVariables   map[string]string `plist:"EnvironmentVariables,omitempty"`   // Environment vars
-	StartInterval          int               `plist:"StartInterval,omitempty"`          // Restart interval (seconds)
-	StartOnMount           bool              `plist:"StartOnMount,omitempty"`           // Start when filesystem mounts
-	ThrottleInterval       int               `plist:"ThrottleInterval,omitempty"`       // Throttle restart attempts
-	ProcessType            string            `plist:"ProcessType,omitempty"`            // Process type (Background, Standard, etc.)
-	SessionCreate          bool              `plist:"SessionCreate,omitempty"`          // Create session
-	LaunchOnlyOnce         bool              `plist:"LaunchOnlyOnce,omitempty"`         // Run only once
-	LimitLoadToSessionType string            `plist:"LimitLoadToSessionType,omitempty"` // Session type limit
-}
-
-func NewDaemon(filename string, dirDomain Domain, forUseBy ForWhom) Daemon {
-	plistData := &Plist{}
-	content, _ := os.ReadFile(filename)
-	_, _ = plist.Unmarshal(content, plistData)
-	domain := domainFromSessionType(plistData.LimitLoadToSessionType)
-	if domain == DomainUnknown {
-		domain = dirDomain
+func NewDaemon(filenameOrDaemonName string, dirDomain types.Domain, forUseBy types.ForWhom, pid *int, lastExitCode *int) types.Daemon {
+	plistData := &types.Plist{}
+	name := ""
+	sourcePath := "unknown"
+	domain := dirDomain
+	if strings.Contains(filenameOrDaemonName, "/") {
+		filename := filenameOrDaemonName
+		content, _ := os.ReadFile(filename)
+		_, _ = plist.Unmarshal(content, plistData)
+		domain = domainFromSessionType(plistData.LimitLoadToSessionType)
+		if domain == types.DomainUnknown {
+			domain = dirDomain
+		}
+		// Use Label from plist if it exists, otherwise fall back to filename
+		if plistData.Label != "" {
+			name = plistData.Label
+		} else {
+			name = strings.TrimSuffix(fp.Base(filename), ".plist")
+		}
+		sourcePath = filename
+	} else {
+		name = filenameOrDaemonName
 	}
 
-	return Daemon{
-		Name:       strings.TrimSuffix(fp.Base(filename), ".plist"),
-		SourcePath: filename,
-		Plist:      plistData,
-		Domain:     domainStr(os.Geteuid(), domain),
-		ForUseBy:   forUseBy,
+	return types.Daemon{
+		Name:         name,
+		SourcePath:   sourcePath,
+		Plist:        plistData,
+		Domain:       domain,
+		DomainStr:    domainStr(os.Geteuid(), domain),
+		ForUseBy:     forUseBy,
+		PID:          pid,
+		LastExitCode: lastExitCode,
 	}
 }
 
-func domainFromSessionType(sessionType string) Domain {
+func domainFromSessionType(sessionType string) types.Domain {
 	switch sessionType {
 	case "Aqua":
-		return DomainGui
+		return types.DomainGui
 	case "Background":
-		return DomainUser
+		return types.DomainUser
 	case "LoginWindow":
-		return DomainUser
+		return types.DomainUser
 	case "System":
-		return DomainSystem
+		return types.DomainSystem
 	default:
-		return DomainUnknown
+		return types.DomainUnknown
 	}
 }
 
-func domainStr(uid int, domain Domain) string {
+func domainStr(uid int, domain types.Domain) string {
 	switch domain {
-	case DomainSystem:
+	case types.DomainSystem:
 		return "system"
-	case DomainUser:
+	case types.DomainUser:
 		return "user/" + strconv.Itoa(uid)
-	case DomainGui:
+	case types.DomainGui:
 		return "gui/" + strconv.Itoa(uid)
 	default:
 		return "Unknown"
@@ -101,7 +97,7 @@ func domainStr(uid int, domain Domain) string {
 }
 
 type DaemonRegistry struct {
-	Map map[string]Daemon
+	Map map[string]types.Daemon
 }
 
 func NewDaemonRegistry() *DaemonRegistry {
@@ -110,12 +106,12 @@ func NewDaemonRegistry() *DaemonRegistry {
 		plistDirs = append(plistDirs, plistDir{
 			Path:     cfgDir.Path,
 			Domain:   cfgDir.Domain,
-			ForUseBy: ForUser,
+			ForUseBy: types.ForUser,
 		})
 	}
 
 	daemonRegistry := &DaemonRegistry{
-		Map: make(map[string]Daemon),
+		Map: make(map[string]types.Daemon),
 	}
 	for _, plistDir := range plistDirs {
 		matches, err := fp.Glob(plistDir.Path + "/*.plist")
@@ -123,14 +119,38 @@ func NewDaemonRegistry() *DaemonRegistry {
 			continue
 		}
 		for _, filename := range matches {
-			daemon := NewDaemon(filename, plistDir.Domain, plistDir.ForUseBy)
+			daemon := NewDaemon(filename, plistDir.Domain, plistDir.ForUseBy, nil, nil)
 			daemonRegistry.Map[daemon.Name] = daemon
+		}
+	}
+	// add running daemons from anywhere else
+	listOutput, err := launchctl.List()
+	if err != nil {
+		return daemonRegistry
+	}
+	for _, line := range strings.Split(string(listOutput), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		pid, _ := strconv.Atoi(parts[0])
+		lastExitCode, _ := strconv.Atoi(parts[1])
+		name := parts[2]
+		daemon, exists := daemonRegistry.Map[name]
+		if !exists {
+			daemon = NewDaemon(name, types.DomainUnknown, types.ForThirdParty, &pid, &lastExitCode)
+			daemonRegistry.Map[name] = daemon
+		} else {
+			// add pid and last exit code to existing daemon
+			daemon.PID = &pid
+			daemon.LastExitCode = &lastExitCode
+			daemonRegistry.Map[name] = daemon
 		}
 	}
 	return daemonRegistry
 }
 
-func (r *DaemonRegistry) WithMatch(query string, exact bool, execFn func(Daemon) error) error {
+func (r *DaemonRegistry) WithMatch(query string, exact bool, execFn func(types.Daemon) error) error {
 	matches, err := r.findMatches(query, exact)
 	if err != nil {
 		return err
@@ -138,7 +158,7 @@ func (r *DaemonRegistry) WithMatch(query string, exact bool, execFn func(Daemon)
 	return execFn(matches[0])
 }
 
-func (r *DaemonRegistry) WithMatches(query string, exact bool, execFn func(Daemon) error) error {
+func (r *DaemonRegistry) WithMatches(query string, exact bool, execFn func(types.Daemon) error) error {
 	matches, err := r.findMatches(query, exact)
 	if err != nil {
 		return err
@@ -151,12 +171,16 @@ func (r *DaemonRegistry) WithMatches(query string, exact bool, execFn func(Daemo
 	return nil
 }
 
-func (r *DaemonRegistry) findMatches(query string, exact bool) ([]Daemon, error) {
+func (r *DaemonRegistry) GetMatches(query string, exact bool) ([]types.Daemon, error) {
+	return r.findMatches(query, exact)
+}
+
+func (r *DaemonRegistry) findMatches(query string, exact bool) ([]types.Daemon, error) {
 	if exact {
 		query = fmt.Sprintf("^%s$", query)
 	}
 	pattern := regexp.MustCompile("(?i)" + regexp.QuoteMeta(query))
-	var matches []Daemon
+	var matches []types.Daemon
 
 	for _, daemon := range r.Map {
 		if pattern.MatchString(daemon.Name) {
@@ -168,7 +192,7 @@ func (r *DaemonRegistry) findMatches(query string, exact bool) ([]Daemon, error)
 		if query != "" {
 			return nil, fmt.Errorf("no daemon found matching '%s'", query)
 		}
-		return []Daemon{}, nil
+		return []types.Daemon{}, nil
 	}
 	return matches, nil
 }
