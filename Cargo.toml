@@ -1,0 +1,29 @@
+[package]
+    name    = "angel"
+    version = "0.1.0"
+    edition = "2024"
+
+[dependencies]
+    clap         = { version = "*", features = ["derive"] }
+    serde        = { version = "*", features = ["derive"] }
+    serde_yaml   = "*"
+    plist        = "*"
+    anyhow       = "*"
+    thiserror    = "*"
+    crossterm    = "*"
+    ratatui      = "*"
+    dirs         = "*"
+    regex        = "*"
+    glob         = "*"
+    libc         = "*"
+    nix          = { version = "*", features = ["fs", "user"] }
+    nu-ansi-term = "*"
+    memchr       = "*"
+    comfy-table  = "*"
+    dialoguer    = "*"
+    strum        = { version = "*", features = ["derive"] }
+
+[dev-dependencies]
+    criterion = "*"
+    rayon     = "*"
+    divan     = "*"

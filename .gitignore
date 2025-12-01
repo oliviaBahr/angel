@@ -1,4 +1,2 @@
-*.md
-go.sum
-build/
-angel
+target/
+cargo.lock
