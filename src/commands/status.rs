@@ -5,7 +5,7 @@ use crate::error::Result;
 use crate::launchctl;
 use crate::output::styles;
 use crate::output::{is_verbose, stdout};
-use nu_ansi_term::Color;
+use crossterm::style::Color;
 
 pub fn run(angel: &Angel, args: &NameArgs) -> Result<()> {
     let daemon = angel.daemons.get_match(&args.name, args.exact)?;

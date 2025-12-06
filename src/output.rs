@@ -1,4 +1,4 @@
-use nu_ansi_term::Color;
+use crossterm::style::Color;
 use std::io::{self, Write};
 use std::sync::OnceLock;
 
@@ -39,14 +39,14 @@ macro_rules! write_to_stream {
 }
 
 pub mod styles {
-    use nu_ansi_term::{Color, Style};
+    use crossterm::style::{Color, Stylize};
 
     pub fn prefix(color: Color, text: &str) -> String {
-        color.bold().paint(text).to_string()
+        text.with(color).bold().to_string()
     }
 
-    pub fn command() -> Style {
-        Style::new().italic().dimmed()
+    pub fn command(text: &str) -> String {
+        text.italic().dim().to_string()
     }
 }
 
@@ -89,7 +89,7 @@ pub mod stdout {
 /// Error/log output (stderr) - for errors, warnings, debug info
 pub mod stderr {
     use super::styles::prefix;
-    use nu_ansi_term::Color;
+    use crossterm::style::Color;
     use std::io::{self, Write};
 
     #[inline(always)]

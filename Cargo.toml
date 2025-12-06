@@ -15,7 +15,7 @@
     glob         = "*"
     libc         = "*"
     nix          = { version = "*", features = ["fs", "user"] }
-    nu-ansi-term = "*"
+    crossterm = "*"
     comfy-table  = "*"
     dialoguer    = "*"
     strum        = { version = "*", features = ["derive"] }

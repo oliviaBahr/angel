@@ -203,7 +203,7 @@ impl DaemonRegistry {
                             "{:<19}{}  {}",
                             color_domain(&daemon.domain),
                             daemon.name,
-                            styles::command().paint(&display_path(&daemon, false))
+                            styles::command(&display_path(&daemon, false))
                         )
                     })
                     .collect();

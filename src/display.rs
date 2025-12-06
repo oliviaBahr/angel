@@ -1,25 +1,25 @@
 use crate::types::{Daemon, Domain};
 use comfy_table::Table;
-use nu_ansi_term::Color;
+use crossterm::style::{Color, Stylize};
 use std::path::{Path, PathBuf};
 
 pub fn format_status_dot(status: &str, color: Option<Color>) -> String {
     let (color, dot) = match status {
         "running" => (Color::Green, "●"),
-        "not running" => (Color::Default, "●"),
+        "not running" => (Color::White, "●"),
         "stopped" => (Color::Red, "●"),
         "launched" => (Color::Yellow, "●"),
         "exited" => (Color::Blue, "●"),
         _ => (color.unwrap_or(Color::Magenta), "●"),
     };
-    format!("{} {}", color.paint(dot), status)
+    format!("{} {}", dot.with(color), status)
 }
 
 pub fn color_domain(domain: &Domain) -> String {
     match domain {
-        Domain::System => Color::LightPurple.paint(domain.to_string()).to_string(),
-        Domain::User(_) => Color::LightGreen.paint(domain.to_string()).to_string(),
-        Domain::Gui(_) => Color::Cyan.paint(domain.to_string()).to_string(),
+        Domain::System => domain.to_string().with(Color::Magenta).to_string(),
+        Domain::User(_) => domain.to_string().with(Color::Green).to_string(),
+        Domain::Gui(_) => domain.to_string().with(Color::Cyan).to_string(),
         Domain::Unknown => domain.to_string(),
     }
 }
