@@ -1,6 +1,7 @@
 use crate::error::{Result, SystemError};
 use crate::output;
-use crate::types::Daemon;
+use crate::output::styles;
+use crate::types::{Daemon, Domain};
 use nu_ansi_term::Color;
 use std::process::Command;
 use std::sync::OnceLock;
@@ -55,7 +56,18 @@ pub fn bootstrap(daemon: &Daemon) -> Result<LaunchctlResult> {
         })?
         .to_str()
         .ok_or_else(|| SystemError::Launchctl("Invalid source path encoding".to_string()))?;
-    launchctl_exec(vec!["bootstrap", &daemon.domain_str(), path])
+    let res = launchctl_exec(vec!["bootstrap", &daemon.domain_str(), path]);
+    if res.as_ref().is_ok_and(|result| result.output.contains("Input/output error")) {
+        match daemon.domain {
+            Domain::User(_) => {
+                output::stdout::hint(
+                    "The user domain is for background sessions. If this isn't a background session, use the GUI domain.",
+                );
+            }
+            _ => {}
+        }
+    }
+    res
 }
 
 pub fn bootout(daemon: &Daemon) -> Result<LaunchctlResult> {
@@ -87,33 +99,30 @@ pub fn print<T: PrintTarget>(target: &T) -> Result<LaunchctlResult> {
 }
 
 fn launchctl_exec(mut args: Vec<&str>) -> Result<LaunchctlResult> {
-    let mut cmd = match is_root() {
-        true => {
-            args.insert(0, "launchctl");
-            Command::new("sudo")
-        }
-        false => Command::new("launchctl"),
+    let mut cmd = if is_root() {
+        args.insert(0, "launchctl");
+        Command::new("sudo")
+    } else {
+        Command::new("launchctl")
     };
 
     if output::is_verbose() {
         let cmd_str = format!("{} {}", cmd.get_program().to_string_lossy(), args.join(" "));
-        output::stdout::writeln(&format!("{}: {}", Color::Blue.paint("Running"), cmd_str));
+        output::stdout::writelogln(
+            styles::prefix(Color::Blue, "CMD"),
+            styles::command().paint(cmd_str),
+        );
     }
 
-    let output = cmd
-        .args(&args)
-        .output()
-        .map_err(|e| SystemError::Launchctl(format!("Failed to execute launchctl: {}", e)))?;
+    let output = cmd.args(&args).output().map_err(|e| {
+        SystemError::Launchctl(format!("Failed to execute launchctl command: {}", e))
+    })?;
 
     let exit_code = output.status.code();
     let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
 
-    Ok(LaunchctlResult {
-        output: stdout_str,
-        exit_code,
-        stderr: stderr_str,
-    })
+    Ok(LaunchctlResult { output: stdout_str, exit_code, stderr: stderr_str })
 }
 
 fn service_target(daemon: &Daemon) -> String {

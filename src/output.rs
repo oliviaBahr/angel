@@ -33,18 +33,26 @@ macro_rules! write_to_stream {
             false => write!(io::$stream(), "{}", $msg),
         };
         if let Err(e) = result {
-            let _ = writeln!(
-                io::stderr(),
-                "Failed to write to {}: {}",
-                stringify!($stream),
-                e
-            );
+            let _ = writeln!(io::stderr(), "Failed to write to {}: {}", stringify!($stream), e);
         }
     };
 }
 
+pub mod styles {
+    use nu_ansi_term::{Color, Style};
+
+    pub fn prefix(color: Color, text: &str) -> String {
+        color.bold().paint(text).to_string()
+    }
+
+    pub fn command() -> Style {
+        Style::new().italic().dimmed()
+    }
+}
+
 /// User-facing data output (stdout) - for structured data, tables, results
 pub mod stdout {
+    use super::styles::prefix;
     use super::*;
 
     #[inline(always)]
@@ -53,48 +61,49 @@ pub mod stdout {
     }
 
     #[inline(always)]
-    pub fn writeln(data: impl std::fmt::Display) {
-        write_to_stream!(io::stdout, data, true);
+    pub fn writeln(msg: impl std::fmt::Display) {
+        write_to_stream!(io::stdout, msg, true);
+    }
+
+    #[inline(always)]
+    pub fn writelogln(prefix: impl std::fmt::Display, msg: impl std::fmt::Display) {
+        write_to_stream!(io::stdout, format!("{} {}", prefix, msg), true);
     }
 
     #[inline(always)]
     pub fn success(msg: &str) {
-        write_to_stream!(
-            io::stdout,
-            format!("{} {}", Color::Green.paint("✔"), msg),
-            true
-        );
+        writelogln(prefix(Color::Green, "✔"), msg);
     }
 
     #[inline(always)]
     pub fn error(msg: &str) {
-        write_to_stream!(
-            io::stdout,
-            format!("{} {}", Color::Red.paint("✘"), msg),
-            true
-        );
+        writelogln(prefix(Color::Red, "✘"), msg);
+    }
+
+    #[inline(always)]
+    pub fn hint(msg: &str) {
+        writelogln(prefix(Color::Yellow, "→"), msg);
     }
 }
 
 /// Error/log output (stderr) - for errors, warnings, debug info
 pub mod stderr {
-    use super::*;
+    use super::styles::prefix;
+    use nu_ansi_term::Color;
+    use std::io::{self, Write};
+
+    #[inline(always)]
+    pub fn writelogln(prefix: impl std::fmt::Display, msg: impl std::fmt::Display) {
+        write_to_stream!(io::stderr, format!("{:<7}{}", prefix, msg), true);
+    }
 
     #[inline(always)]
     pub fn warn(msg: &str) {
-        write_to_stream!(
-            io::stderr,
-            format!("{} {}", Color::Yellow.paint("WARN"), msg),
-            true
-        );
+        writelogln(prefix(Color::Yellow, "WARN"), msg);
     }
 
     #[inline(always)]
     pub fn error(msg: &str) {
-        write_to_stream!(
-            io::stderr,
-            format!("{} {}", Color::Red.paint("ERROR"), msg),
-            true
-        );
+        writelogln(prefix(Color::Red, "ERROR"), msg);
     }
 }

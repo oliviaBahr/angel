@@ -1,9 +1,5 @@
 use comfy_table::Table;
-use nu_ansi_term::{Color, Style};
-
-pub fn bold(text: &str) -> String {
-    Style::new().bold().paint(text).to_string()
-}
+use nu_ansi_term::Color;
 
 pub fn format_status_dot(status: &str, color: Option<Color>) -> String {
     let (color, dot) = match status {
