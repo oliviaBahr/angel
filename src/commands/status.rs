@@ -47,6 +47,7 @@ fn extract_status(output: &str) -> String {
         _ if output.contains("state = stopped") => "stopped".to_string(),
         _ if output.contains("state = launched") => "launched".to_string(),
         _ if output.contains("state = exited") => "exited".to_string(),
+        _ if output.contains("state = not running") => "not running".to_string(),
         _ => "unknown".to_string(),
     }
 }

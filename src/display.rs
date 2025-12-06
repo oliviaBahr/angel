@@ -5,6 +5,7 @@ use nu_ansi_term::Color;
 pub fn format_status_dot(status: &str, color: Option<Color>) -> String {
     let (color, dot) = match status {
         "running" => (Color::Green, "●"),
+        "not running" => (Color::Default, "●"),
         "stopped" => (Color::Red, "●"),
         "launched" => (Color::Yellow, "●"),
         "exited" => (Color::Blue, "●"),
