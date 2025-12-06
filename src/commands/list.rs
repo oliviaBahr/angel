@@ -1,6 +1,6 @@
 use crate::angel::Angel;
 use crate::cli::ListArgs;
-use crate::display;
+use crate::display::{self};
 use crate::error::Result;
 use crate::output::stdout;
 use crate::types::ForWhom;
@@ -19,13 +19,7 @@ pub fn run(angel: &Angel, args: &ListArgs) -> Result<()> {
     sort_daemons(args.sort_by.clone(), &mut matching_daemons);
 
     let mut table = display::create_table();
-    table.set_header(vec![
-        "EC".to_string(),
-        "PID".to_string(),
-        "Domain".to_string(),
-        "Name".to_string(),
-        "Source".to_string(),
-    ]);
+    table.set_header(vec!["EC", "PID", "Domain", "Name", "Source"]);
 
     for daemon in &matching_daemons {
         match (daemon.for_use_by == ForWhom::Apple && !args.show_apple)
@@ -41,11 +35,7 @@ pub fn run(angel: &Angel, args: &ListArgs) -> Result<()> {
             daemon.pid.map_or("-".to_string(), |p| p.to_string()),
             display::color_domain(&daemon.domain),
             daemon.name.clone(),
-            daemon
-                .source_path
-                .as_ref()
-                .and_then(|p| p.parent())
-                .map_or("-".to_string(), |p| p.display().to_string()),
+            display::display_path(daemon, false),
         ]);
     }
 

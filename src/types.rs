@@ -100,7 +100,6 @@ pub struct Plist {
 pub struct Daemon {
     pub name: String,
     pub source_path: Option<PathBuf>,
-    pub installation_path: Option<PathBuf>,
     pub domain: Domain,
     pub for_use_by: ForWhom,
     pub plist: Option<Plist>,
@@ -112,29 +111,18 @@ impl Daemon {
     pub fn new(
         name: String,
         source_path: Option<PathBuf>,
-        installation_path: Option<PathBuf>,
         domain: Domain,
         for_use_by: ForWhom,
         plist: Option<Plist>,
         pid: Option<u32>,
         last_exit_code: Option<String>,
     ) -> Self {
-        Self {
-            name,
-            source_path,
-            installation_path,
-            domain,
-            for_use_by,
-            plist,
-            pid,
-            last_exit_code,
-        }
+        Self { name, source_path, domain, for_use_by, plist, pid, last_exit_code }
     }
 
     pub fn from_plist(
         plist: Plist,
         path: Option<PathBuf>,
-        installation_path: Option<PathBuf>,
         default_domain: Domain,
         for_use_by: ForWhom,
         uid: u32,
@@ -150,7 +138,6 @@ impl Daemon {
         Self {
             name,
             source_path: path,
-            installation_path,
             domain,
             for_use_by,
             plist: Some(plist),

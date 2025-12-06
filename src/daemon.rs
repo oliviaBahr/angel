@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::display::color_domain;
+use crate::display::{color_domain, display_path};
 use crate::error::{Result, SystemError, UserError};
 use crate::output::styles;
 use crate::parser::Parser;
@@ -13,6 +13,7 @@ struct PlistDir {
     path: PathBuf,
     domain: Domain,
     for_use_by: ForWhom,
+    is_system_monitored: bool,
 }
 
 fn get_plist_dirs(config: &Config, user_uid: u32) -> Vec<PlistDir> {
@@ -22,26 +23,31 @@ fn get_plist_dirs(config: &Config, user_uid: u32) -> Vec<PlistDir> {
             path: PathBuf::from("/System/Library/LaunchDaemons"),
             domain: Domain::System,
             for_use_by: ForWhom::Apple,
+            is_system_monitored: true,
         },
         PlistDir {
             path: PathBuf::from("/System/Library/LaunchAgents"),
             domain: Domain::Gui(user_uid),
             for_use_by: ForWhom::Apple,
+            is_system_monitored: true,
         },
         PlistDir {
             path: PathBuf::from("/System/Library/LaunchAngels"),
             domain: Domain::Gui(user_uid),
             for_use_by: ForWhom::Apple,
+            is_system_monitored: true,
         },
         PlistDir {
             path: PathBuf::from("/Library/LaunchDaemons"),
             domain: Domain::System,
             for_use_by: ForWhom::ThirdParty,
+            is_system_monitored: true,
         },
         PlistDir {
             path: PathBuf::from("/Library/LaunchAgents"),
             domain: Domain::User(user_uid),
             for_use_by: ForWhom::ThirdParty,
+            is_system_monitored: true,
         },
     ];
 
@@ -51,21 +57,25 @@ fn get_plist_dirs(config: &Config, user_uid: u32) -> Vec<PlistDir> {
                 path: PathBuf::from(&home).join("Library/LaunchAgents"),
                 domain: Domain::User(user_uid),
                 for_use_by: ForWhom::User,
+                is_system_monitored: true,
             },
             PlistDir {
                 path: PathBuf::from(&home).join(".config/angel/user"),
                 domain: Domain::User(user_uid),
                 for_use_by: ForWhom::Angel,
+                is_system_monitored: false,
             },
             PlistDir {
                 path: PathBuf::from(&home).join(".config/angel/system"),
                 domain: Domain::System,
                 for_use_by: ForWhom::Angel,
+                is_system_monitored: false,
             },
             PlistDir {
                 path: PathBuf::from(&home).join(".config/angel/gui"),
                 domain: Domain::Gui(user_uid),
                 for_use_by: ForWhom::Angel,
+                is_system_monitored: false,
             },
         ]);
     }
@@ -83,6 +93,7 @@ fn get_plist_dirs(config: &Config, user_uid: u32) -> Vec<PlistDir> {
             path: PathBuf::from(&cfg_dir.path),
             domain,
             for_use_by: ForWhom::User,
+            is_system_monitored: false,
         });
     }
 
@@ -96,7 +107,7 @@ pub struct DaemonRegistry {
 impl DaemonRegistry {
     pub fn new(config: &Config, uid: u32) -> Result<Self> {
         let plist_dirs = get_plist_dirs(config, uid);
-        let mut map = HashMap::new();
+        let mut map: HashMap<String, Daemon> = HashMap::new();
 
         // Scan plist directories
         for plist_dir in &plist_dirs {
@@ -110,14 +121,22 @@ impl DaemonRegistry {
                 };
                 if let Ok(content) = std::fs::read(&entry) {
                     if let Ok(plist_data) = plist::from_bytes::<Plist>(&content) {
-                        let (source_path, installation_path) = match entry.is_symlink() {
-                            true => (&entry, &entry.read_link().unwrap_or(PathBuf::from(""))),
-                            false => (&entry, &entry),
+                        // pick source path for duplicates
+                        let found_daemon = map.get(&plist_data.label.clone().unwrap_or_default());
+                        let found_path = found_daemon.and_then(|daemon| daemon.source_path.clone());
+                        let source_path = match found_path {
+                            Some(found_path) => match () {
+                                _ if entry.is_symlink() => entry,
+                                _ if found_path.is_symlink() => found_path,
+                                _ if plist_dir.is_system_monitored => found_path,
+                                _ => entry,
+                            },
+                            None => entry,
                         };
+
                         let daemon = Daemon::from_plist(
                             plist_data,
-                            Some(source_path.clone()),
-                            Some(installation_path.clone()),
+                            Some(source_path),
                             plist_dir.domain.clone(),
                             plist_dir.for_use_by,
                             plist_uid,
@@ -155,7 +174,6 @@ impl DaemonRegistry {
                         let daemon = Daemon::new(
                             name.clone(),
                             None,
-                            None,
                             domain.clone(),
                             for_use_by,
                             None,
@@ -181,17 +199,11 @@ impl DaemonRegistry {
                 let items: Vec<String> = matches
                     .iter()
                     .map(|daemon| {
-                        let domain_str = color_domain(&daemon.domain);
-                        let path_str = daemon
-                            .installation_path
-                            .as_ref()
-                            .and_then(|p| p.to_str())
-                            .unwrap_or_default();
                         format!(
                             "{:<19}{}  {}",
-                            domain_str,
+                            color_domain(&daemon.domain),
                             daemon.name,
-                            styles::command().paint(path_str)
+                            styles::command().paint(&display_path(&daemon, false))
                         )
                     })
                     .collect();

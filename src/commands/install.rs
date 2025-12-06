@@ -43,7 +43,6 @@ pub fn run(angel: &Angel, args: &InstallArgs) -> Result<()> {
 
     let daemon = Daemon::from_plist(
         plist_data,
-        Some(source_path.clone()),
         Some(target_path.clone()),
         selected_domain,
         ForWhom::User,
