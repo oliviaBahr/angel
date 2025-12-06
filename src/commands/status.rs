@@ -3,7 +3,6 @@ use crate::cli::NameArgs;
 use crate::display;
 use crate::error::Result;
 use crate::launchctl;
-use crate::output::styles;
 use crate::output::{is_verbose, stdout};
 use crossterm::style::Color;
 
@@ -14,7 +13,7 @@ pub fn run(angel: &Angel, args: &NameArgs) -> Result<()> {
     let status = extract_status(&result.output);
     let color = if result.success() { None } else { Some(Color::Red) };
 
-    stdout::writeln(&styles::prefix(Color::Blue, &daemon.name));
+    stdout::writeln(&display::prefix(Color::Blue, &daemon.name));
     stdout::writeln(&display::format_status_dot(&status, color));
 
     let mut table = display::create_table();

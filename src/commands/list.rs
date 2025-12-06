@@ -2,6 +2,7 @@ use crate::angel::Angel;
 use crate::cli::ListArgs;
 use crate::display::{self};
 use crate::error::Result;
+use crate::output;
 use crate::output::stdout;
 use crate::types::ForWhom;
 use clap::ValueEnum;
@@ -33,9 +34,9 @@ pub fn run(angel: &Angel, args: &ListArgs) -> Result<()> {
         table.add_row(vec![
             daemon.last_exit_code.clone().unwrap_or("-".to_string()),
             daemon.pid.map_or("-".to_string(), |p| p.to_string()),
-            display::color_domain(&daemon.domain),
+            (&daemon.domain).to_string(),
             daemon.name.clone(),
-            display::display_path(daemon, false),
+            display::display_path(daemon, output::is_verbose()),
         ]);
     }
 

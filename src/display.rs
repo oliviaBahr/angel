@@ -1,5 +1,5 @@
 use crate::types::{Daemon, Domain};
-use comfy_table::Table;
+use comfy_table::{ContentArrangement, Table};
 use crossterm::style::{Color, Stylize};
 use std::path::{Path, PathBuf};
 
@@ -26,6 +26,7 @@ pub fn color_domain(domain: &Domain) -> String {
 
 pub fn create_table() -> Table {
     let mut table = Table::new();
+    table.set_content_arrangement(ContentArrangement::Dynamic);
     table.load_preset(comfy_table::presets::UTF8_BORDERS_ONLY);
     table.apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
     table
@@ -45,7 +46,7 @@ pub fn display_path(daemon: &Daemon, long: bool) -> String {
         Some(path) => match path.is_symlink() {
             true => match long {
                 true => format!(
-                    "{} → {}",
+                    "  {} → {}",
                     compress_path(path),
                     compress_path(&path.read_link().unwrap_or(PathBuf::from("")))
                 ),
@@ -55,4 +56,12 @@ pub fn display_path(daemon: &Daemon, long: bool) -> String {
         },
         None => "-".to_string(),
     }
+}
+
+pub fn prefix(color: Color, text: &str) -> String {
+    text.with(color).bold().to_string()
+}
+
+pub fn command(text: &str) -> String {
+    text.italic().dim().to_string()
 }

@@ -38,22 +38,10 @@ macro_rules! write_to_stream {
     };
 }
 
-pub mod styles {
-    use crossterm::style::{Color, Stylize};
-
-    pub fn prefix(color: Color, text: &str) -> String {
-        text.with(color).bold().to_string()
-    }
-
-    pub fn command(text: &str) -> String {
-        text.italic().dim().to_string()
-    }
-}
-
 /// User-facing data output (stdout) - for structured data, tables, results
 pub mod stdout {
-    use super::styles::prefix;
     use super::*;
+    use crate::display::prefix;
 
     #[inline(always)]
     pub fn write(data: impl std::fmt::Display) {
@@ -88,7 +76,7 @@ pub mod stdout {
 
 /// Error/log output (stderr) - for errors, warnings, debug info
 pub mod stderr {
-    use super::styles::prefix;
+    use crate::display::prefix;
     use crossterm::style::Color;
     use std::io::{self, Write};
 
