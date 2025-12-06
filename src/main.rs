@@ -17,22 +17,8 @@ use error::AngelError;
 fn main() {
     let cli = Cli::parse();
 
-    // Extract verbose flag from command args
-    let verbose = match &cli.command {
-        Commands::Start(args) => args.verbose,
-        Commands::Restart(args) => args.verbose,
-        Commands::Status(args) => args.verbose,
-        Commands::Plist(args) => args.verbose,
-        Commands::Uninstall(args) => args.verbose,
-        Commands::Bootstrap(args) => args.verbose,
-        Commands::Bootout(args) => args.verbose,
-        Commands::Enable(args) => args.verbose,
-        Commands::Disable(args) => args.verbose,
-        _ => false,
-    };
-
     // Initialize output context before any commands run
-    output::init(verbose);
+    output::init(cli.verbose);
 
     // Load Angel instance before any command runs
     let angel = match angel::Angel::load() {

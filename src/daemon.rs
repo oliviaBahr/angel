@@ -103,9 +103,8 @@ impl DaemonRegistry {
 
             for entry in matches.flatten() {
                 let plist_uid = match plist_dir.domain {
-                    Domain::System => 0,
                     Domain::User(uid) | Domain::Gui(uid) => uid,
-                    Domain::Unknown => 0,
+                    _ => 0,
                 };
                 if let Ok(content) = std::fs::read(&entry) {
                     if let Ok(plist_data) = plist::from_bytes::<Plist>(&content) {

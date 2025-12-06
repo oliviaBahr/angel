@@ -20,6 +20,12 @@ fn context() -> &'static OutputContext {
     CONTEXT.get_or_init(|| OutputContext { verbose: false })
 }
 
+/// Check if verbose output is enabled
+#[inline(always)]
+pub fn is_verbose() -> bool {
+    context().verbose
+}
+
 macro_rules! write_to_stream {
     (io::$stream:ident, $msg:expr, $newline:expr) => {
         let result = match $newline {
@@ -73,15 +79,6 @@ pub mod stdout {
 /// Error/log output (stderr) - for errors, warnings, debug info
 pub mod stderr {
     use super::*;
-
-    #[inline(always)]
-    pub fn log(msg: &str) {
-        write_to_stream!(
-            io::stderr,
-            format!("{} {}", Color::Blue.paint("INFO"), msg),
-            false
-        );
-    }
 
     #[inline(always)]
     pub fn warn(msg: &str) {

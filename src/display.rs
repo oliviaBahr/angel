@@ -5,13 +5,13 @@ pub fn bold(text: &str) -> String {
     Style::new().bold().paint(text).to_string()
 }
 
-pub fn format_status_dot(status: &str) -> String {
+pub fn format_status_dot(status: &str, color: Option<Color>) -> String {
     let (color, dot) = match status {
         "running" => (Color::Green, "●"),
         "stopped" => (Color::Red, "●"),
         "launched" => (Color::Yellow, "●"),
         "exited" => (Color::Blue, "●"),
-        _ => (Color::Magenta, "●"),
+        _ => (color.unwrap_or(Color::Magenta), "●"),
     };
     format!("{} {}", color.paint(dot), status)
 }

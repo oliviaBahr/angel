@@ -1,0 +1,4 @@
+# Use maximum small heuristics to encourage compact formatting
+use_small_heuristics = "Max"
+
+brace_style = "PreferSameLine"

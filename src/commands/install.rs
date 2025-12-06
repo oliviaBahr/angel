@@ -1,6 +1,6 @@
 use crate::angel::Angel;
 use crate::cli::InstallArgs;
-use crate::error::{Result, UserError};
+use crate::error::{AngelError, Result, UserError};
 use crate::launchctl;
 use crate::output::stdout;
 use crate::types::{Daemon, Domain, ForWhom, Plist};
@@ -28,9 +28,6 @@ pub fn run(angel: &Angel, args: &InstallArgs) -> Result<()> {
         .clone()
         .ok_or_else(|| UserError::InvalidArgument("No label found in plist".to_string()))?;
 
-    // kill running service if it is running
-    kill_running_service(angel, &service_name)?;
-
     // ask user which domain
     let selected_domain = get_domain_selection(angel, &plist_data)?;
 
@@ -40,6 +37,9 @@ pub fn run(angel: &Angel, args: &InstallArgs) -> Result<()> {
 
     // set permissions for system domains
     set_permissions(&selected_domain, &args.strategy, &source_path, &target_path)?;
+
+    // kill running service if it is running
+    kill_running_service(angel, &service_name)?;
 
     let daemon = Daemon::from_plist(
         plist_data,
@@ -66,7 +66,9 @@ fn kill_running_service(angel: &Angel, service_name: &str) -> Result<()> {
             Some(_) => daemon,
             None => return Ok(()), // not running. proceed.
         },
-        Err(_) => return Ok(()), // not found. proceed.
+        Err(AngelError::User(UserError::DaemonNotFound(_))) => return Ok(()), // not found. proceed.
+        Err(AngelError::User(UserError::MultipleDaemons(_))) => return Ok(()), // multiple daemons found. proceed.
+        Err(e) => return Err(e.into()),
     };
     confirm_kill_running_service(&daemon)?;
     launchctl::disable(daemon)?; // disable before bootout to prevent restart when keepAlive = true

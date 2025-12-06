@@ -2,7 +2,7 @@ use crate::angel::Angel;
 use crate::cli::NameArgs;
 use crate::error::Result;
 use crate::launchctl;
-use crate::output::{stderr, stdout};
+use crate::output::{is_verbose, stderr, stdout};
 use crate::parser::Parser;
 use crate::types::Daemon;
 use std::path::PathBuf;
@@ -17,8 +17,8 @@ pub fn run(angel: &Angel, args: &NameArgs) -> Result<()> {
         return Ok(());
     }
 
-    bootout_service(daemon, args.verbose);
-    remove_plist_file(&source_path, args.verbose)?;
+    bootout_service(daemon);
+    remove_plist_file(&source_path)?;
     remove_db_overrides(daemon)?;
 
     stdout::success(&format!("Uninstalled {}", daemon.name));
@@ -45,12 +45,12 @@ fn confirm_uninstall(daemon: &Daemon, source_path: &PathBuf) -> Result<bool> {
         .interact()?)
 }
 
-fn bootout_service(daemon: &Daemon, verbose: bool) {
+fn bootout_service(daemon: &Daemon) {
     match launchctl::bootout(daemon) {
         Ok(result) => {
             if result.success() {
                 stdout::success(&format!("Unloaded service: {}", daemon.name));
-            } else if verbose {
+            } else if is_verbose() {
                 stderr::warn(&format!(
                     "Warning: Failed to unload service: {}",
                     result.stderr
@@ -58,19 +58,19 @@ fn bootout_service(daemon: &Daemon, verbose: bool) {
             }
         }
         Err(e) => {
-            if verbose {
+            if is_verbose() {
                 stderr::warn(&format!("Warning: Failed to unload service: {}", e));
             }
         }
     }
 }
 
-fn remove_plist_file(source_path: &PathBuf, verbose: bool) -> Result<()> {
+fn remove_plist_file(source_path: &PathBuf) -> Result<()> {
     let source_path_display = source_path.display().to_string();
     if source_path.exists() {
         std::fs::remove_file(source_path)?;
         stdout::success(&format!("Removed plist file: {}", source_path_display));
-    } else if verbose {
+    } else if is_verbose() {
         stderr::warn(&format!(
             "Warning: Plist file does not exist: {}",
             source_path_display

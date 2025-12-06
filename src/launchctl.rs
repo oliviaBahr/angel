@@ -1,5 +1,7 @@
 use crate::error::{Result, SystemError};
+use crate::output;
 use crate::types::Daemon;
+use nu_ansi_term::Color;
 use std::process::Command;
 use std::sync::OnceLock;
 
@@ -92,6 +94,11 @@ fn launchctl_exec(mut args: Vec<&str>) -> Result<LaunchctlResult> {
         }
         false => Command::new("launchctl"),
     };
+
+    if output::is_verbose() {
+        let cmd_str = format!("{} {}", cmd.get_program().to_string_lossy(), args.join(" "));
+        output::stdout::writeln(&format!("{}: {}", Color::Blue.paint("Running"), cmd_str));
+    }
 
     let output = cmd
         .args(&args)

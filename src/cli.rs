@@ -7,6 +7,9 @@ const VERSION: &str = "0.1.0";
 #[command(name = "angel")]
 #[command(about = "macOS launchd service manager", version = VERSION)]
 pub struct Cli {
+    /// Verbose output
+    #[arg(short, long)]
+    pub verbose: bool,
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -18,9 +21,6 @@ pub struct NameArgs {
     /// Exact match
     #[arg(short, long)]
     pub exact: bool,
-    /// Verbose output
-    #[arg(short, long)]
-    pub verbose: bool,
 }
 
 #[derive(Args)]
@@ -73,9 +73,6 @@ pub struct StartArgs {
     /// Exact match
     #[arg(short, long)]
     pub exact: bool,
-    /// Verbose output
-    #[arg(short, long)]
-    pub verbose: bool,
     /// Kill existing instance before starting
     #[arg(short, long)]
     pub kill: bool,
