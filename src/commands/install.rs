@@ -52,10 +52,7 @@ pub fn run(angel: &Angel, args: &InstallArgs) -> Result<()> {
     let result = launchctl::bootstrap(&daemon)?;
     match result.success() {
         true => stdout::success(&format!("installed {}", daemon.name)),
-        false => stdout::error(&format!(
-            "failed to install {}: {}",
-            daemon.name, result.stderr
-        )),
+        false => stdout::error(&format!("failed to install {}: {}", daemon.name, result.stderr)),
     }
     Ok(())
 }
@@ -110,10 +107,7 @@ fn confirm_overwrite(target_path: &Path) -> Result<()> {
         return Ok(());
     }
     let choice = dialoguer::Confirm::new()
-        .with_prompt(format!(
-            "A file already exists at {}. Overwrite it?",
-            target_path.display()
-        ))
+        .with_prompt(format!("A file already exists at {}. Overwrite it?", target_path.display()))
         .default(true)
         .interact()
         .unwrap_or(false);
@@ -130,11 +124,8 @@ fn confirm_overwrite(target_path: &Path) -> Result<()> {
 }
 
 fn get_domain_selection(angel: &Angel, plist_data: &Plist) -> Result<Domain> {
-    let domains = [
-        Domain::User(angel.uid.as_raw()),
-        Domain::Gui(angel.uid.as_raw()),
-        Domain::System,
-    ];
+    let domains =
+        [Domain::Gui(angel.uid.as_raw()), Domain::System, Domain::User(angel.uid.as_raw())];
     let domain_selection_index = dialoguer::Select::new()
         .with_prompt("In which domain should the service be installed?")
         .items(&domains)
@@ -168,11 +159,9 @@ fn get_domain_selection(angel: &Angel, plist_data: &Plist) -> Result<Domain> {
 fn make_target_path(domain: &Domain, service_name: &str) -> Result<PathBuf> {
     let target_dir = match domain {
         Domain::System => PathBuf::from("/Library/LaunchDaemons"),
-        _ => dirs::home_dir()
-            .map(|home| home.join("Library/LaunchAgents"))
-            .ok_or_else(|| {
-                UserError::InvalidArgument("Could not determine user home directory".to_string())
-            })?,
+        _ => dirs::home_dir().map(|home| home.join("Library/LaunchAgents")).ok_or_else(|| {
+            UserError::InvalidArgument("Could not determine user home directory".to_string())
+        })?,
     };
     let filename = match service_name.ends_with(".plist") {
         true => service_name.to_string(),
@@ -202,10 +191,7 @@ fn set_permissions(
 }
 
 fn set_system_permissions(path: &Path, follow_symlink: bool) -> Result<()> {
-    stdout::writeln(&format!(
-        "Setting system permissions for {}",
-        path.display()
-    ));
+    stdout::writeln(&format!("Setting system permissions for {}", path.display()));
 
     // sudo chown root:wheel foo/mydaemon.plist
     let uid = Uid::from(0); // root = 0

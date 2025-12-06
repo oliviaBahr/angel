@@ -23,7 +23,7 @@ fn get_plist_dirs(config: &Config, user_uid: u32) -> Vec<PlistDir> {
         },
         PlistDir {
             path: PathBuf::from("/System/Library/LaunchAgents"),
-            domain: Domain::User(user_uid),
+            domain: Domain::Gui(user_uid),
             for_use_by: ForWhom::Apple,
         },
         PlistDir {
