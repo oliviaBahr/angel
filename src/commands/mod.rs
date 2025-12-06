@@ -4,6 +4,7 @@ pub mod disable;
 pub mod enable;
 pub mod install;
 pub mod list;
+pub mod print;
 pub mod restart;
 pub mod show;
 pub mod start;

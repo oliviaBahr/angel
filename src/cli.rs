@@ -123,6 +123,8 @@ pub enum Commands {
     Enable(NameArgs),
     /// Disable a service
     Disable(NameArgs),
+    /// Print service information (launchctl print wrapper)
+    Print(NameArgs),
     /// Show version
     Version,
 }

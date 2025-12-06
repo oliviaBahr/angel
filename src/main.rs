@@ -45,6 +45,7 @@ fn main() {
         Commands::Bootout(args) => commands::bootout::run(&angel, &args),
         Commands::Enable(args) => commands::enable::run(&angel, &args),
         Commands::Disable(args) => commands::disable::run(&angel, &args),
+        Commands::Print(args) => commands::print::run(&angel, &args),
         Commands::Version => {
             commands::version::run();
             Ok(())
