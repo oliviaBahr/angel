@@ -43,7 +43,8 @@ pub fn run(angel: &Angel, args: &InstallArgs) -> Result<()> {
 
     let daemon = Daemon::from_plist(
         plist_data,
-        Some(target_path),
+        Some(source_path.clone()),
+        Some(target_path.clone()),
         selected_domain,
         ForWhom::User,
         angel.uid.as_raw(),
@@ -64,7 +65,6 @@ fn kill_running_service(angel: &Angel, service_name: &str) -> Result<()> {
             None => return Ok(()), // not running. proceed.
         },
         Err(AngelError::User(UserError::DaemonNotFound(_))) => return Ok(()), // not found. proceed.
-        Err(AngelError::User(UserError::MultipleDaemons(_))) => return Ok(()), // multiple daemons found. proceed.
         Err(e) => return Err(e.into()),
     };
     confirm_kill_running_service(&daemon)?;

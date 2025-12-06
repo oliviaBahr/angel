@@ -1,5 +1,7 @@
 use crate::config::Config;
+use crate::display::color_domain;
 use crate::error::{Result, SystemError, UserError};
+use crate::output::styles;
 use crate::parser::Parser;
 use crate::types::{Daemon, Domain, ForWhom, Plist};
 use regex::Regex;
@@ -108,9 +110,14 @@ impl DaemonRegistry {
                 };
                 if let Ok(content) = std::fs::read(&entry) {
                     if let Ok(plist_data) = plist::from_bytes::<Plist>(&content) {
+                        let (source_path, installation_path) = match entry.is_symlink() {
+                            true => (&entry, &entry.read_link().unwrap_or(PathBuf::from(""))),
+                            false => (&entry, &entry),
+                        };
                         let daemon = Daemon::from_plist(
                             plist_data,
-                            Some(entry),
+                            Some(source_path.clone()),
+                            Some(installation_path.clone()),
                             plist_dir.domain.clone(),
                             plist_dir.for_use_by,
                             plist_uid,
@@ -127,9 +134,7 @@ impl DaemonRegistry {
             .into_iter()
             .map(|domain| {
                 thread::spawn(move || {
-                    Parser::parse_print_domain(&domain)
-                        .ok()
-                        .map(|services| (domain, services))
+                    Parser::parse_print_domain(&domain).ok().map(|services| (domain, services))
                 })
             })
             .collect();
@@ -149,6 +154,7 @@ impl DaemonRegistry {
                         };
                         let daemon = Daemon::new(
                             name.clone(),
+                            None,
                             None,
                             domain.clone(),
                             for_use_by,
@@ -170,7 +176,37 @@ impl DaemonRegistry {
         match matches.len() {
             0 => Err(UserError::DaemonNotFound(query.to_string()).into()),
             1 => Ok(matches[0]),
-            _ => Err(UserError::MultipleDaemons(query.to_string()).into()),
+            _ => {
+                // Format daemons for display
+                let items: Vec<String> = matches
+                    .iter()
+                    .map(|daemon| {
+                        let domain_str = color_domain(&daemon.domain);
+                        let path_str = daemon
+                            .installation_path
+                            .as_ref()
+                            .and_then(|p| p.to_str())
+                            .unwrap_or_default();
+                        format!(
+                            "{:<19}{}  {}",
+                            domain_str,
+                            daemon.name,
+                            styles::command().paint(path_str)
+                        )
+                    })
+                    .collect();
+
+                let selection = dialoguer::Select::new()
+                    .with_prompt(format!(
+                        "Multiple daemons found matching '{}'. Select one:",
+                        query
+                    ))
+                    .items(&items)
+                    .default(0)
+                    .interact()?;
+
+                Ok(matches[selection])
+            }
         }
     }
 
@@ -188,10 +224,6 @@ impl DaemonRegistry {
         let re = Regex::new(&pattern)
             .map_err(|e| SystemError::Launchctl(format!("Invalid regex: {}", e)))?;
 
-        Ok(self
-            .map
-            .values()
-            .filter(|daemon| re.is_match(&daemon.name))
-            .collect())
+        Ok(self.map.values().filter(|daemon| re.is_match(&daemon.name)).collect())
     }
 }

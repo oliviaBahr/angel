@@ -19,11 +19,7 @@ impl Domain {
                 "System" => Domain::System,
                 _ => Domain::Unknown,
             };
-            if d != Domain::Unknown {
-                d
-            } else {
-                default
-            }
+            if d != Domain::Unknown { d } else { default }
         } else {
             default
         }
@@ -75,10 +71,7 @@ pub struct Plist {
     #[serde(rename = "StandardErrorPath", skip_serializing_if = "Option::is_none")]
     pub standard_error_path: Option<String>,
 
-    #[serde(
-        rename = "EnvironmentVariables",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "EnvironmentVariables", skip_serializing_if = "Option::is_none")]
     pub environment_variables: Option<std::collections::HashMap<String, String>>,
 
     #[serde(rename = "StartInterval", skip_serializing_if = "Option::is_none")]
@@ -99,10 +92,7 @@ pub struct Plist {
     #[serde(rename = "LaunchOnlyOnce", skip_serializing_if = "Option::is_none")]
     pub launch_only_once: Option<bool>,
 
-    #[serde(
-        rename = "LimitLoadToSessionType",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "LimitLoadToSessionType", skip_serializing_if = "Option::is_none")]
     pub limit_load_to_session_type: Option<String>,
 }
 
@@ -110,6 +100,7 @@ pub struct Plist {
 pub struct Daemon {
     pub name: String,
     pub source_path: Option<PathBuf>,
+    pub installation_path: Option<PathBuf>,
     pub domain: Domain,
     pub for_use_by: ForWhom,
     pub plist: Option<Plist>,
@@ -121,6 +112,7 @@ impl Daemon {
     pub fn new(
         name: String,
         source_path: Option<PathBuf>,
+        installation_path: Option<PathBuf>,
         domain: Domain,
         for_use_by: ForWhom,
         plist: Option<Plist>,
@@ -130,6 +122,7 @@ impl Daemon {
         Self {
             name,
             source_path,
+            installation_path,
             domain,
             for_use_by,
             plist,
@@ -141,6 +134,7 @@ impl Daemon {
     pub fn from_plist(
         plist: Plist,
         path: Option<PathBuf>,
+        installation_path: Option<PathBuf>,
         default_domain: Domain,
         for_use_by: ForWhom,
         uid: u32,
@@ -156,6 +150,7 @@ impl Daemon {
         Self {
             name,
             source_path: path,
+            installation_path,
             domain,
             for_use_by,
             plist: Some(plist),

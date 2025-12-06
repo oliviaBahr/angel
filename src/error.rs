@@ -7,9 +7,6 @@ pub enum UserError {
     #[error("Daemon not found: {0}")]
     DaemonNotFound(String),
 
-    #[error("Multiple daemons found matching '{0}'")]
-    MultipleDaemons(String),
-
     #[error("Sudo is required to perform this action")]
     RequiresRoot,
 
