@@ -1,7 +1,6 @@
 use crate::config::Config;
-use crate::display;
-use crate::error::{AngelError, Result};
-use crate::launchctl;
+use crate::error::{Result, SystemError, UserError};
+use crate::parser::Parser;
 use crate::types::{Daemon, Domain, ForWhom, Plist};
 use regex::Regex;
 use std::collections::HashMap;
@@ -88,46 +87,6 @@ fn get_plist_dirs(config: &Config, user_uid: u32) -> Vec<PlistDir> {
     dirs
 }
 
-pub fn parse_print_services(output: &str) -> Vec<(Option<u32>, Option<String>, String)> {
-    // Find the services section
-    let services_start = match output.find("services = {") {
-        Some(pos) => pos + 13,
-        None => return Vec::new(),
-    };
-    let services_end = match output[services_start..].find('}') {
-        Some(pos) => services_start + pos - 1,
-        None => output.len(),
-    };
-
-    let services_section = &output[services_start..services_end];
-    let mut services = Vec::new();
-
-    for line in services_section.lines() {
-        let trimmed = line.trim();
-
-        // Split by whitespace
-        let parts: Vec<&str> = trimmed.split_whitespace().collect();
-
-        if parts.len() < 3 {
-            eprintln!(
-                "Warning: launchctl output format has changed - skipping line: {}",
-                line
-            );
-            continue;
-        }
-
-        let pid = parts[0].parse::<u32>().ok();
-        let exit_code = Some(parts[1].to_string());
-        let name = parts[2..].join(" ").trim().to_string();
-
-        if !name.is_empty() {
-            services.push((pid, exit_code, name));
-        }
-    }
-
-    services
-}
-
 pub struct DaemonRegistry {
     map: HashMap<String, Daemon>,
 }
@@ -169,16 +128,15 @@ impl DaemonRegistry {
             .into_iter()
             .map(|domain| {
                 thread::spawn(move || {
-                    launchctl::print(&domain.to_string())
+                    Parser::parse_print_domain(&domain)
                         .ok()
-                        .map(|output| (domain, output))
+                        .map(|services| (domain, services))
                 })
             })
             .collect();
 
         for handle in handles {
-            if let Some((domain, print_output)) = handle.join().unwrap() {
-                let services = parse_print_services(&print_output);
+            if let Some((domain, services)) = handle.join().unwrap() {
                 for (pid, last_exit_code, name) in services {
                     // Update existing daemon or create new one
                     if let Some(daemon) = map.get_mut(&name) {
@@ -208,40 +166,33 @@ impl DaemonRegistry {
         Ok(Self { map })
     }
 
-    pub fn get_match(&self, query: &str, exact: bool) -> &Daemon {
-        let matches = self.find_matches(query, exact);
-        if matches.is_empty() {
-            display::error_and_exit(&AngelError::DaemonNotFound(query.to_string()).to_string());
+    pub fn get_match(&self, query: &str, exact: bool) -> Result<&Daemon> {
+        let matches = self.find_matches(query, exact)?;
+        match matches.len() {
+            0 => Err(UserError::DaemonNotFound(query.to_string()).into()),
+            1 => Ok(matches[0]),
+            _ => Err(UserError::MultipleDaemons(query.to_string()).into()),
         }
-        if matches.len() > 1 {
-            display::error_and_exit(&AngelError::MultipleDaemons(query.to_string()).to_string());
-        }
-        matches[0]
     }
 
-    pub fn get_matches(&self, query: &str, exact: bool) -> Vec<&Daemon> {
+    pub fn get_matches(&self, query: &str, exact: bool) -> Result<Vec<&Daemon>> {
         self.find_matches(query, exact)
     }
 
-    fn find_matches(&self, query: &str, exact: bool) -> Vec<&Daemon> {
+    fn find_matches(&self, query: &str, exact: bool) -> Result<Vec<&Daemon>> {
         let pattern = if exact {
             format!("^{}$", regex::escape(query))
         } else {
             format!("(?i){}", regex::escape(query))
         };
 
-        let re = match Regex::new(&pattern) {
-            Ok(re) => re,
-            Err(e) => {
-                display::error_and_exit(
-                    &AngelError::Launchctl(format!("Invalid regex: {}", e)).to_string(),
-                );
-            }
-        };
+        let re = Regex::new(&pattern)
+            .map_err(|e| SystemError::Launchctl(format!("Invalid regex: {}", e)))?;
 
-        self.map
+        Ok(self
+            .map
             .values()
             .filter(|daemon| re.is_match(&daemon.name))
-            .collect()
+            .collect())
     }
 }

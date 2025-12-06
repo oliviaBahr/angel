@@ -1,6 +1,5 @@
 use comfy_table::Table;
 use nu_ansi_term::{Color, Style};
-use std::process;
 
 pub fn bold(text: &str) -> String {
     Style::new().bold().paint(text).to_string()
@@ -22,9 +21,4 @@ pub fn create_table() -> Table {
     table.load_preset(comfy_table::presets::UTF8_BORDERS_ONLY);
     table.apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
     table
-}
-
-pub fn error_and_exit(message: &str) -> ! {
-    eprintln!("{}", Color::Red.paint(message));
-    process::exit(1);
 }

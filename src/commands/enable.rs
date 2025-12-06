@@ -2,13 +2,18 @@ use crate::angel::Angel;
 use crate::cli::NameArgs;
 use crate::error::Result;
 use crate::launchctl;
+use crate::output::stdout;
 
 pub fn run(angel: &Angel, args: &NameArgs) -> Result<()> {
-    let daemon = angel.daemons.get_match(&args.name, args.exact);
-    let output = launchctl::enable(daemon)?;
-    print!("{}", output);
-    println!("enabled {}", daemon.name);
+    let daemon = angel.daemons.get_match(&args.name, args.exact)?;
+    let result = launchctl::enable(daemon)?;
+    stdout::write(&result.output);
+    match result.success() {
+        true => stdout::success(&format!("enabled {}", daemon.name)),
+        false => stdout::error(&format!(
+            "failed to enable {}: {}",
+            daemon.name, result.stderr
+        )),
+    }
     Ok(())
 }
-
-

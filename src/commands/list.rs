@@ -2,6 +2,7 @@ use crate::angel::Angel;
 use crate::cli::ListArgs;
 use crate::display;
 use crate::error::Result;
+use crate::output::stdout;
 use crate::types::ForWhom;
 use clap::ValueEnum;
 
@@ -14,7 +15,7 @@ pub enum SortBy {
 
 pub fn run(angel: &Angel, args: &ListArgs) -> Result<()> {
     let query = args.pattern.as_deref().unwrap_or("");
-    let mut matching_daemons = angel.daemons.get_matches(query, args.exact);
+    let mut matching_daemons = angel.daemons.get_matches(query, args.exact)?;
     sort_daemons(args.sort_by.clone(), &mut matching_daemons);
 
     let mut table = display::create_table();
@@ -27,11 +28,12 @@ pub fn run(angel: &Angel, args: &ListArgs) -> Result<()> {
     ]);
 
     for daemon in &matching_daemons {
-        if (daemon.for_use_by == ForWhom::Apple && !args.show_apple)
+        match (daemon.for_use_by == ForWhom::Apple && !args.show_apple)
             || (daemon.source_path.is_none() && !args.show_dynamic)
             || (daemon.pid.is_none() && !args.show_idle)
         {
-            continue;
+            true => continue,
+            false => {}
         }
 
         table.add_row(vec![
@@ -47,7 +49,7 @@ pub fn run(angel: &Angel, args: &ListArgs) -> Result<()> {
         ]);
     }
 
-    println!("{}", table.to_string());
+    stdout::writeln(&table);
     Ok(())
 }
 

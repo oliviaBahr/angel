@@ -1,7 +1,20 @@
-use crate::error::{AngelError, Result};
+use crate::error::{Result, SystemError};
 use crate::types::Daemon;
 use std::process::Command;
 use std::sync::OnceLock;
+
+#[derive(Debug)]
+pub struct LaunchctlResult {
+    pub output: String,
+    pub exit_code: Option<i32>,
+    pub stderr: String,
+}
+
+impl LaunchctlResult {
+    pub fn success(&self) -> bool {
+        self.exit_code == Some(0)
+    }
+}
 
 static ROOT_STATUS: OnceLock<bool> = OnceLock::new();
 
@@ -31,47 +44,47 @@ impl PrintTarget for String {
     }
 }
 
-pub fn bootstrap(daemon: &Daemon) -> Result<String> {
+pub fn bootstrap(daemon: &Daemon) -> Result<LaunchctlResult> {
     let path = daemon
         .source_path
         .as_ref()
         .ok_or_else(|| {
-            AngelError::Launchctl("Cannot bootstrap daemon without source path".to_string())
+            SystemError::Launchctl("Cannot bootstrap daemon without source path".to_string())
         })?
         .to_str()
-        .ok_or_else(|| AngelError::Launchctl("Invalid source path encoding".to_string()))?;
+        .ok_or_else(|| SystemError::Launchctl("Invalid source path encoding".to_string()))?;
     launchctl_exec(vec!["bootstrap", &daemon.domain_str(), path])
 }
 
-pub fn bootout(daemon: &Daemon) -> Result<String> {
+pub fn bootout(daemon: &Daemon) -> Result<LaunchctlResult> {
     launchctl_exec(vec!["bootout", &service_target(daemon)])
 }
 
-pub fn enable(daemon: &Daemon) -> Result<String> {
+pub fn enable(daemon: &Daemon) -> Result<LaunchctlResult> {
     launchctl_exec(vec!["enable", &service_target(daemon)])
 }
 
-pub fn disable(daemon: &Daemon) -> Result<String> {
+pub fn disable(daemon: &Daemon) -> Result<LaunchctlResult> {
     launchctl_exec(vec!["disable", &service_target(daemon)])
 }
 
-pub fn kickstart(daemon: &Daemon) -> Result<String> {
+pub fn kickstart(daemon: &Daemon) -> Result<LaunchctlResult> {
     launchctl_exec(vec!["kickstart", &service_target(daemon)])
 }
 
-pub fn kickstart_kill(daemon: &Daemon) -> Result<String> {
+pub fn kickstart_kill(daemon: &Daemon) -> Result<LaunchctlResult> {
     launchctl_exec(vec!["kickstart", "-k", &service_target(daemon)])
 }
 
-pub fn kill(daemon: &Daemon, signal: &str) -> Result<String> {
+pub fn kill(daemon: &Daemon, signal: &str) -> Result<LaunchctlResult> {
     launchctl_exec(vec!["kill", signal, &service_target(daemon)])
 }
 
-pub fn print<T: PrintTarget>(target: &T) -> Result<String> {
+pub fn print<T: PrintTarget>(target: &T) -> Result<LaunchctlResult> {
     launchctl_exec(vec!["print", &target.target_str()])
 }
 
-fn launchctl_exec(mut args: Vec<&str>) -> Result<String> {
+fn launchctl_exec(mut args: Vec<&str>) -> Result<LaunchctlResult> {
     let mut cmd = match is_root() {
         true => {
             args.insert(0, "launchctl");
@@ -83,17 +96,17 @@ fn launchctl_exec(mut args: Vec<&str>) -> Result<String> {
     let output = cmd
         .args(&args)
         .output()
-        .map_err(|e| AngelError::Launchctl(format!("Failed to execute launchctl: {}", e)))?;
+        .map_err(|e| SystemError::Launchctl(format!("Failed to execute launchctl: {}", e)))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AngelError::Launchctl(format!(
-            "launchctl failed: {}",
-            stderr
-        )));
-    }
+    let exit_code = output.status.code();
+    let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
 
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    Ok(LaunchctlResult {
+        output: stdout_str,
+        exit_code,
+        stderr: stderr_str,
+    })
 }
 
 fn service_target(daemon: &Daemon) -> String {

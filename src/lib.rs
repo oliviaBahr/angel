@@ -6,5 +6,7 @@ pub mod daemon;
 pub mod display;
 pub mod error;
 pub mod launchctl;
+pub mod output;
+pub mod parser;
 pub mod types;
 

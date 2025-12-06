@@ -2,54 +2,114 @@ use crate::angel::Angel;
 use crate::cli::NameArgs;
 use crate::error::Result;
 use crate::launchctl;
+use crate::output::{stderr, stdout};
+use crate::parser::Parser;
+use crate::types::Daemon;
+use std::path::PathBuf;
 
 pub fn run(angel: &Angel, args: &NameArgs) -> Result<()> {
-    let daemon = angel.daemons.get_match(&args.name, args.exact);
+    let daemon = angel.daemons.get_match(&args.name, args.exact)?;
 
-    // Check if daemon has a source path (installed plist file)
-    let source_path = daemon.source_path.as_ref().ok_or_else(|| {
-        crate::error::AngelError::InvalidArgument(
-            "Service does not have an installed plist file".to_string(),
-        )
-    })?;
+    let source_path = get_source_path(daemon)?;
 
-    // Ask user for confirmation
-    let confirm = dialoguer::Confirm::new()
+    if !confirm_uninstall(daemon, &source_path)? {
+        stdout::writeln("Uninstall cancelled.");
+        return Ok(());
+    }
+
+    bootout_service(daemon, args.verbose);
+    remove_plist_file(&source_path, args.verbose)?;
+    remove_db_overrides(daemon)?;
+
+    stdout::success(&format!("Uninstalled {}", daemon.name));
+    Ok(())
+}
+
+fn get_source_path(daemon: &Daemon) -> Result<PathBuf> {
+    Parser::parse_print_service(daemon)?
+        .and_then(|(_, _, _, path)| path)
+        .ok_or_else(|| {
+            crate::error::AngelError::from(crate::error::UserError::InvalidArgument(
+                "Service does not have an installed plist file".to_string(),
+            ))
+        })
+}
+
+fn confirm_uninstall(daemon: &Daemon, source_path: &PathBuf) -> Result<bool> {
+    Ok(dialoguer::Confirm::new()
         .with_prompt(format!(
             "Uninstall service `{}` at `{}`?",
             daemon.name,
             source_path.display()
         ))
-        .interact()?;
+        .interact()?)
+}
 
-    if !confirm {
-        println!("Uninstall cancelled.");
+fn bootout_service(daemon: &Daemon, verbose: bool) {
+    match launchctl::bootout(daemon) {
+        Ok(result) => {
+            if result.success() {
+                stdout::success(&format!("Unloaded service: {}", daemon.name));
+            } else if verbose {
+                stderr::warn(&format!(
+                    "Warning: Failed to unload service: {}",
+                    result.stderr
+                ));
+            }
+        }
+        Err(e) => {
+            if verbose {
+                stderr::warn(&format!("Warning: Failed to unload service: {}", e));
+            }
+        }
+    }
+}
+
+fn remove_plist_file(source_path: &PathBuf, verbose: bool) -> Result<()> {
+    let source_path_display = source_path.display().to_string();
+    if source_path.exists() {
+        std::fs::remove_file(source_path)?;
+        stdout::success(&format!("Removed plist file: {}", source_path_display));
+    } else if verbose {
+        stderr::warn(&format!(
+            "Warning: Plist file does not exist: {}",
+            source_path_display
+        ));
+    }
+    Ok(())
+}
+
+fn remove_db_overrides(daemon: &Daemon) -> Result<()> {
+    let db_overrides_file = PathBuf::from("/var/db/com.apple.xpc.launchd/disabled.plist");
+    if !db_overrides_file.exists() {
         return Ok(());
     }
 
-    // Unload the service from launchd
-    if let Err(e) = launchctl::bootout(daemon) {
-        // If bootout fails, the service might not be loaded, but we can still try to remove the file
-        if args.verbose {
-            eprintln!("Warning: Failed to unload service: {}", e);
+    let bytes = std::fs::read(&db_overrides_file)?;
+    let disabled_services: std::collections::HashMap<String, bool> = plist::from_bytes(&bytes)?;
+    stdout::writeln(&format!("disabled_services: {:?}", disabled_services));
+
+    let current_value = disabled_services.get(&daemon.name);
+    if current_value.is_some() {
+        if !confirm_db_overrides(daemon, current_value.unwrap())? {
+            return Ok(());
         }
-    } else {
-        println!("Unloaded service: {}", daemon.name);
+        let mut writer = std::fs::File::open(&db_overrides_file)?;
+        plist::to_writer_xml(&mut writer, &disabled_services)?;
+        stdout::success(&format!(
+            "Removed service from disabled.plist: {}",
+            daemon.name
+        ));
     }
 
-    // Delete the plist file
-    if source_path.exists() {
-        std::fs::remove_file(source_path)?;
-        println!("Removed plist file: {}", source_path.display());
-    } else {
-        if args.verbose {
-            eprintln!(
-                "Warning: Plist file does not exist: {}",
-                source_path.display()
-            );
-        }
-    }
-
-    println!("Uninstalled {}", daemon.name);
     Ok(())
+}
+
+fn confirm_db_overrides(daemon: &Daemon, current_value: &bool) -> Result<bool> {
+    Ok(dialoguer::Confirm::new()
+        .with_prompt(format!(
+            "Found `{}` in enable/disable override database with disabled = {}. Remove it?",
+            daemon.name, current_value
+        ))
+        .interact()?)
 }

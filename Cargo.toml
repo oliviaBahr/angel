@@ -10,15 +10,12 @@
     plist        = "*"
     anyhow       = "*"
     thiserror    = "*"
-    crossterm    = "*"
-    ratatui      = "*"
     dirs         = "*"
     regex        = "*"
     glob         = "*"
     libc         = "*"
     nix          = { version = "*", features = ["fs", "user"] }
     nu-ansi-term = "*"
-    memchr       = "*"
     comfy-table  = "*"
     dialoguer    = "*"
     strum        = { version = "*", features = ["derive"] }
