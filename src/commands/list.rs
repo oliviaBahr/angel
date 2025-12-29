@@ -1,6 +1,6 @@
 use crate::angel::Angel;
 use crate::cli::ListArgs;
-use crate::display::{self};
+use crate::styles::styles;
 use crate::error::Result;
 use crate::output;
 use crate::output::stdout;
@@ -19,7 +19,7 @@ pub fn run(angel: &Angel, args: &ListArgs) -> Result<()> {
     let mut matching_daemons = angel.daemons.get_matches(query, args.exact)?;
     sort_daemons(args.sort_by.clone(), &mut matching_daemons);
 
-    let mut table = display::create_table();
+    let mut table = styles::create_table();
     table.set_header(vec!["EC", "PID", "Domain", "Name", "Source"]);
 
     for daemon in &matching_daemons {
@@ -36,7 +36,7 @@ pub fn run(angel: &Angel, args: &ListArgs) -> Result<()> {
             daemon.pid.map_or("-".to_string(), |p| p.to_string()),
             (&daemon.domain).to_string(),
             daemon.name.clone(),
-            display::display_path(daemon, output::is_verbose()),
+            styles::display_path(daemon, output::is_verbose()),
         ]);
     }
 

@@ -3,7 +3,7 @@ pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod daemon;
-pub mod display;
+pub mod styles;
 pub mod error;
 pub mod launchctl;
 pub mod output;

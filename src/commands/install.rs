@@ -5,9 +5,11 @@ use crate::launchctl;
 use crate::output::stdout;
 use crate::types::{Daemon, Domain, ForWhom, Plist};
 use clap::ValueEnum;
-use nix::sys::stat::{FchmodatFlags, Mode, fchmodat};
-use nix::unistd::{self, Gid, Uid};
-use std::fs::File;
+use nix::fcntl::{AT_FDCWD, AtFlags};
+use nix::sys::stat::Mode;
+use nix::unistd::{Gid, Uid, fchownat};
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, ValueEnum, PartialEq)]
@@ -174,39 +176,32 @@ fn make_target_path(domain: &Domain, service_name: &str) -> Result<PathBuf> {
 fn set_permissions(
     selected_domain: &Domain,
     strategy: &InstallStrategy,
-    source_path: &PathBuf,
+    _source_path: &PathBuf,
     target_path: &PathBuf,
 ) -> Result<()> {
     if *selected_domain == Domain::System && *strategy == InstallStrategy::Symlink {
-        let set_on_target = dialoguer::Confirm::new()
-            .with_prompt("Angel will set system permissions/ownership on the symlink. Should it also set them on the target?")
-            .interact()?;
-        if set_on_target {
-            set_system_permissions(source_path, true)?;
-        }
-        set_system_permissions(target_path, false)?;
+        set_system_permissions(target_path)?;
     }
     Ok(())
 }
 
-fn set_system_permissions(path: &Path, follow_symlink: bool) -> Result<()> {
+fn set_system_permissions(path: &Path) -> Result<()> {
     stdout::writeln(&format!("Setting system permissions for {}", path.display()));
 
-    // sudo chown root:wheel foo/mydaemon.plist
+    // sudo chown root:wheel
     let uid = Uid::from(0); // root = 0
     let gid = Gid::from_raw(0); // wheel = 0
-    unistd::chown(path, Some(uid), Some(gid))?;
+    fchownat(AT_FDCWD, path, Some(uid), Some(gid), AtFlags::AT_SYMLINK_NOFOLLOW)?;
 
-    // sudo chmod 644 foo/mydaemon.plist
+    // sudo chmod 644
     let owner_read_write = Mode::S_IRUSR | Mode::S_IWUSR; // 6
     let group_read = Mode::S_IRGRP; // 4
     let other_read = Mode::S_IROTH; // 4
     let mode = owner_read_write | group_read | other_read;
-    let symlink_flag = match follow_symlink {
-        true => FchmodatFlags::FollowSymlink,
-        false => FchmodatFlags::NoFollowSymlink,
-    };
-    let dir_fd = File::open(".")?;
-    fchmodat(&dir_fd, path, mode, symlink_flag)?;
+
+    // set permissions on symlink not target
+    let mut perms = fs::symlink_metadata(path)?.permissions();
+    perms.set_mode(mode.bits() as u32);
+    fs::set_permissions(path, perms)?;
     Ok(())
 }

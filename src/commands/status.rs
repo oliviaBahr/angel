@@ -1,9 +1,9 @@
 use crate::angel::Angel;
 use crate::cli::NameArgs;
-use crate::display;
 use crate::error::Result;
 use crate::launchctl;
 use crate::output::{is_verbose, stdout};
+use crate::styles::styles;
 use crossterm::style::Color;
 
 pub fn run(angel: &Angel, args: &NameArgs) -> Result<()> {
@@ -13,15 +13,12 @@ pub fn run(angel: &Angel, args: &NameArgs) -> Result<()> {
     let status = extract_status(&result.output);
     let color = if result.success() { None } else { Some(Color::Red) };
 
-    stdout::writeln(&display::prefix(Color::Blue, &daemon.name));
-    stdout::writeln(&display::format_status_dot(&status, color));
+    stdout::writeln(&styles::prefix(Color::Blue, &daemon.name));
+    stdout::writeln(&styles::format_status_dot(&status, color));
 
-    let mut table = display::create_table();
+    let mut table = styles::create_table();
     table.add_row(vec!["Domain:".to_string(), daemon.domain_str()]);
-    table.add_row(vec![
-        "Source:".to_string(),
-        daemon.source_path.as_ref().map_or("-".to_string(), |p| p.display().to_string()),
-    ]);
+    table.add_row(vec!["Source:".to_string(), styles::display_path(daemon, true)]);
 
     if is_verbose() {
         // Add plist fields if available

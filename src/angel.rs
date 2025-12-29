@@ -15,15 +15,15 @@ impl Angel {
     pub fn load() -> Result<Self> {
         let config = Config::load()?;
         let euid = unistd::geteuid();
-        let uid = unistd::getuid();
+        // When running with sudo, getuid() may return 0. Check SUDO_UID first.
+        let uid = std::env::var("SUDO_UID")
+            .ok()
+            .and_then(|s| s.parse::<u32>().ok())
+            .map(Uid::from_raw)
+            .unwrap_or_else(|| unistd::getuid());
         let daemons = DaemonRegistry::new(&config, uid.as_raw())?;
 
-        Ok(Self {
-            daemons,
-            config,
-            euid,
-            uid,
-        })
+        Ok(Self { daemons, config, euid, uid })
     }
 
     pub fn is_root(&self) -> bool {

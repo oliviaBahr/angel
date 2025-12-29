@@ -1,6 +1,6 @@
 use crate::config::Config;
-use crate::display::{color_domain, command, display_path};
 use crate::error::{Result, SystemError, UserError};
+use crate::styles::styles;
 use crate::parser::Parser;
 use crate::types::{Daemon, Domain, ForWhom, Plist};
 use regex::Regex;
@@ -200,9 +200,9 @@ impl DaemonRegistry {
                     .map(|daemon| {
                         format!(
                             "{:<19}{}  {}",
-                            color_domain(&daemon.domain),
+                            styles::color_domain(&daemon.domain),
                             daemon.name,
-                            command(&display_path(&daemon, false))
+                            styles::command(&styles::display_path(&daemon, false))
                         )
                     })
                     .collect();

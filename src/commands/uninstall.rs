@@ -26,22 +26,22 @@ pub fn run(angel: &Angel, args: &NameArgs) -> Result<()> {
 }
 
 fn get_source_path(daemon: &Daemon) -> Result<PathBuf> {
-    Parser::parse_print_service(daemon)?
-        .and_then(|(_, _, _, path)| path)
-        .ok_or_else(|| {
-            crate::error::AngelError::from(crate::error::UserError::InvalidArgument(
-                "Service does not have an installed plist file".to_string(),
-            ))
-        })
+    // First try to use the source_path from the daemon object (from filesystem scan)
+    if let Some(path) = &daemon.source_path {
+        return Ok(path.clone());
+    }
+
+    // Fall back to parsing launchctl print output
+    Parser::parse_print_service(daemon)?.and_then(|(_, _, _, path)| path).ok_or_else(|| {
+        crate::error::AngelError::from(crate::error::UserError::InvalidArgument(
+            "Service does not have an installed plist file".to_string(),
+        ))
+    })
 }
 
 fn confirm_uninstall(daemon: &Daemon, source_path: &PathBuf) -> Result<bool> {
     Ok(dialoguer::Confirm::new()
-        .with_prompt(format!(
-            "Uninstall service `{}` at `{}`?",
-            daemon.name,
-            source_path.display()
-        ))
+        .with_prompt(format!("Uninstall service `{}` at `{}`?", daemon.name, source_path.display()))
         .interact()?)
 }
 
@@ -51,10 +51,7 @@ fn bootout_service(daemon: &Daemon) {
             if result.success() {
                 stdout::success(&format!("Unloaded service: {}", daemon.name));
             } else if is_verbose() {
-                stderr::warn(&format!(
-                    "Warning: Failed to unload service: {}",
-                    result.stderr
-                ));
+                stderr::warn(&format!("Warning: Failed to unload service: {}", result.stderr));
             }
         }
         Err(e) => {
@@ -71,10 +68,7 @@ fn remove_plist_file(source_path: &PathBuf) -> Result<()> {
         std::fs::remove_file(source_path)?;
         stdout::success(&format!("Removed plist file: {}", source_path_display));
     } else if is_verbose() {
-        stderr::warn(&format!(
-            "Warning: Plist file does not exist: {}",
-            source_path_display
-        ));
+        stderr::warn(&format!("Warning: Plist file does not exist: {}", source_path_display));
     }
     Ok(())
 }
@@ -94,12 +88,12 @@ fn remove_db_overrides(daemon: &Daemon) -> Result<()> {
         if !confirm_db_overrides(daemon, current_value.unwrap())? {
             return Ok(());
         }
-        let mut writer = std::fs::File::open(&db_overrides_file)?;
-        plist::to_writer_xml(&mut writer, &disabled_services)?;
-        stdout::success(&format!(
-            "Removed service from disabled.plist: {}",
-            daemon.name
-        ));
+        let mut updated_services = disabled_services.clone();
+        updated_services.remove(&daemon.name);
+        let mut writer =
+            std::fs::OpenOptions::new().write(true).truncate(true).open(&db_overrides_file)?;
+        plist::to_writer_xml(&mut writer, &updated_services)?;
+        stdout::success(&format!("Removed service from disabled.plist: {}", daemon.name));
     }
 
     Ok(())

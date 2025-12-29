@@ -3,7 +3,7 @@ mod cli;
 mod commands;
 mod config;
 mod daemon;
-mod display;
+mod styles;
 mod error;
 mod launchctl;
 mod output;
